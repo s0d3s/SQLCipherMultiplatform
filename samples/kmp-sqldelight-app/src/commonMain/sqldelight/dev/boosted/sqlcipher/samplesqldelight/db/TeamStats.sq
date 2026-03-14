@@ -1,0 +1,38 @@
+CREATE TABLE teams (
+  id INTEGER NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE scores (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  team_id INTEGER NOT NULL REFERENCES teams(id),
+  points INTEGER NOT NULL
+);
+
+insertTeam:
+INSERT INTO teams(id, name)
+VALUES (?, ?);
+
+insertScore:
+INSERT INTO scores(team_id, points)
+VALUES (?, ?);
+
+teamAggregations:
+SELECT
+  t.id,
+  t.name,
+  COUNT(s.id) AS games_count,
+  COALESCE(SUM(s.points), 0) AS total_points,
+  COALESCE(AVG(s.points), 0.0) AS avg_points,
+  MAX(s.points) AS max_points
+FROM teams t
+LEFT JOIN scores s ON s.team_id = t.id
+GROUP BY t.id, t.name
+ORDER BY total_points DESC, t.name ASC;
+
+globalAggregations:
+SELECT
+  COUNT(*) AS rows_count,
+  COALESCE(SUM(points), 0) AS points_sum,
+  COALESCE(AVG(points), 0.0) AS points_avg
+FROM scores;

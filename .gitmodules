@@ -1,0 +1,3 @@
+[submodule "third_party/sqlcipher/upstream"]
+	path = third_party/sqlcipher/upstream
+	url = https://github.com/sqlcipher/sqlcipher.git
