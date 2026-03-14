@@ -28,6 +28,19 @@ For this MVP, native build expects SQLCipher **amalgamation files**:
 - `third_party/sqlcipher/sqlite3.c`
 - `third_party/sqlcipher/sqlite3.h`
 
+Full SQLCipher upstream source is kept as git submodule:
+
+- `third_party/sqlcipher/upstream`
+
+Initialize/update it with:
+
+- `git submodule update --init --recursive third_party/sqlcipher/upstream`
+
+Regenerate local amalgamation from submodule sources with:
+
+- `./gradlew updateSqlcipherAmalgamation`
+- optional pinned ref/tag: `./gradlew updateSqlcipherAmalgamation -Psqlcipher.ref=v4.13.0`
+
 See `third_party/sqlcipher/README.md`.
 
 ## Build and run (Phase 3 portability)
