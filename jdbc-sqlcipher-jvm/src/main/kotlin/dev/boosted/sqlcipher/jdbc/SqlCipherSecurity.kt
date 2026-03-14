@@ -1,4 +1,4 @@
-package dev.boosted.sqlcipher.jdbc
+package io.github.s0d3s.sqlcipher.multiplatform.jdbc
 
 object SqlCipherJdbcProperties {
     const val KEY = "key"

@@ -31,7 +31,7 @@ kotlin {
 sqldelight {
     databases {
         create("SampleDatabase") {
-            packageName.set("dev.boosted.sqlcipher.samplesqldelight.db")
+            packageName.set("io.github.s0d3s.sqlcipher.multiplatform.samplesqldelight.db")
         }
     }
 }
@@ -54,7 +54,7 @@ tasks.register<JavaExec>("runJvmSample") {
     description = "Runs SQLDelight KMP JVM sample on top of JDBC SQLCipher wrapper"
     dependsOn(":native-bridge:buildNative", "jvmJar")
 
-    mainClass.set("dev.boosted.sqlcipher.samplesqldelight.MainKt")
+    mainClass.set("io.github.s0d3s.sqlcipher.multiplatform.samplesqldelight.MainKt")
     classpath(files(tasks.named("jvmJar"), jvmMainCompilation.runtimeDependencyFiles))
 
     jvmArgs("-Dsqlcipher.native.path=${nativeOutDir.get().asFile.absolutePath}")

@@ -6,7 +6,7 @@ plugins {
 }
 
 allprojects {
-    group = "dev.boosted.sqlcipher"
+    group = "io.github.s0d3s.sqlcipher.multiplatform"
     version = "0.1.0-SNAPSHOT"
 }
 

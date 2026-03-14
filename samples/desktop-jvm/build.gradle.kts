@@ -12,7 +12,7 @@ dependencies {
 }
 
 application {
-    mainClass.set("dev.boosted.sqlcipher.sample.MainKt")
+    mainClass.set("io.github.s0d3s.sqlcipher.multiplatform.sample.MainKt")
 }
 
 val isWindowsHost = System.getProperty("os.name").startsWith("Windows", ignoreCase = true)

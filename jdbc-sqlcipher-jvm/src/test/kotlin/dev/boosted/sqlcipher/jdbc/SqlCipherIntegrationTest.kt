@@ -1,4 +1,4 @@
-package dev.boosted.sqlcipher.jdbc
+package io.github.s0d3s.sqlcipher.multiplatform.jdbc
 
 import java.nio.file.Files
 import java.sql.Connection
@@ -179,7 +179,7 @@ class SqlCipherIntegrationTest {
             setProperty(SqlCipherJdbcProperties.KEY, "legacy-string-key")
         }
 
-        Class.forName("dev.boosted.sqlcipher.jdbc.SqlCipherDriver")
+        Class.forName("io.github.s0d3s.sqlcipher.multiplatform.jdbc.SqlCipherDriver")
         DriverManager.getConnection("jdbc:sqlcipher:$dbPath", props).use { connection ->
             connection.createStatement().use { st ->
                 st.execute("CREATE TABLE IF NOT EXISTS t(id INTEGER PRIMARY KEY)")
@@ -204,7 +204,7 @@ class SqlCipherIntegrationTest {
             put(SqlCipherJdbcProperties.SCRUB_KEY_MATERIAL_AFTER_CONNECT, false)
         }
 
-        Class.forName("dev.boosted.sqlcipher.jdbc.SqlCipherDriver")
+        Class.forName("io.github.s0d3s.sqlcipher.multiplatform.jdbc.SqlCipherDriver")
         DriverManager.getConnection("jdbc:sqlcipher:$dbPath", props).use { connection ->
             connection.createStatement().use { st ->
                 st.execute("CREATE TABLE IF NOT EXISTS t(id INTEGER PRIMARY KEY)")
@@ -217,7 +217,7 @@ class SqlCipherIntegrationTest {
     }
 
     private fun openConnection(dbPath: String): Connection {
-        Class.forName("dev.boosted.sqlcipher.jdbc.SqlCipherDriver")
+        Class.forName("io.github.s0d3s.sqlcipher.multiplatform.jdbc.SqlCipherDriver")
 
         val props = Properties().apply {
             setProperty("key", "integration-secret")
@@ -236,7 +236,7 @@ class SqlCipherIntegrationTest {
     }
 
     private fun openConnectionWithKeyBytes(dbPath: String, key: ByteArray): Connection {
-        Class.forName("dev.boosted.sqlcipher.jdbc.SqlCipherDriver")
+        Class.forName("io.github.s0d3s.sqlcipher.multiplatform.jdbc.SqlCipherDriver")
 
         val keyCopy = key.copyOf()
         val props = Properties().apply {

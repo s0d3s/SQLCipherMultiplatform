@@ -1,4 +1,4 @@
-# SQLiteMultiCrypt (WIP)
+# SQLCipherMultiplatform (WIP)
 
 Windows-first MVP for a **Kotlin Multiplatform + JDBC wrapper** around **SQLCipher**.
 

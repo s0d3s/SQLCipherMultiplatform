@@ -1,14 +1,14 @@
-package dev.boosted.sqlcipher.api
+package io.github.s0d3s.sqlcipher.multiplatform.api
 
-import dev.boosted.sqlcipher.jdbc.SqlCipherJdbcProperties
-import dev.boosted.sqlcipher.jdbc.SqlCipherSecurityOperations
+import io.github.s0d3s.sqlcipher.multiplatform.jdbc.SqlCipherJdbcProperties
+import io.github.s0d3s.sqlcipher.multiplatform.jdbc.SqlCipherSecurityOperations
 import java.sql.Connection
 import java.sql.DriverManager
 import java.util.Properties
 
 actual object SqlCipherDatabaseFactory {
     actual fun open(path: String, key: ByteArray): SqlCipherDatabase {
-        Class.forName("dev.boosted.sqlcipher.jdbc.SqlCipherDriver")
+        Class.forName("io.github.s0d3s.sqlcipher.multiplatform.jdbc.SqlCipherDriver")
 
         val keyBytes = key.copyOf()
         val props = Properties().apply {

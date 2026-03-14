@@ -1,6 +1,6 @@
-package dev.boosted.sqlcipher.sample
+package io.github.s0d3s.sqlcipher.multiplatform.sample
 
-import dev.boosted.sqlcipher.api.SqlCipherDatabaseFactory
+import io.github.s0d3s.sqlcipher.multiplatform.api.SqlCipherDatabaseFactory
 import java.sql.DriverManager
 import java.util.Properties
 
@@ -10,7 +10,7 @@ fun main() {
     val dbPath = "sample-encrypted.db"
     val key = "secret-passphrase"
 
-    Class.forName("dev.boosted.sqlcipher.jdbc.SqlCipherDriver")
+    Class.forName("io.github.s0d3s.sqlcipher.multiplatform.jdbc.SqlCipherDriver")
 
     val connection = DriverManager.getConnection(
         "jdbc:sqlcipher:$dbPath",

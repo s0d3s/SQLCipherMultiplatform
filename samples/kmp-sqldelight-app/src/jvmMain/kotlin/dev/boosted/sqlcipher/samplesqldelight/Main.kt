@@ -1,8 +1,8 @@
-package dev.boosted.sqlcipher.samplesqldelight
+package io.github.s0d3s.sqlcipher.multiplatform.samplesqldelight
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
-import dev.boosted.sqlcipher.jdbc.SqlCipherJdbcProperties
-import dev.boosted.sqlcipher.samplesqldelight.db.SampleDatabase
+import io.github.s0d3s.sqlcipher.multiplatform.jdbc.SqlCipherJdbcProperties
+import io.github.s0d3s.sqlcipher.multiplatform.samplesqldelight.db.SampleDatabase
 import java.io.File
 import java.sql.DriverManager
 import java.sql.SQLException
@@ -20,7 +20,7 @@ fun main() {
     val key = "secret-passphrase-v1".encodeToByteArray()
     val keyCopyForProps = key.copyOf()
 
-    Class.forName("dev.boosted.sqlcipher.jdbc.SqlCipherDriver")
+    Class.forName("io.github.s0d3s.sqlcipher.multiplatform.jdbc.SqlCipherDriver")
 
     try {
         val props = Properties().apply {

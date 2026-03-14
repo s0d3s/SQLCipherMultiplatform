@@ -1,4 +1,4 @@
-package dev.boosted.sqlcipher.api
+package io.github.s0d3s.sqlcipher.multiplatform.api
 
 interface SqlCipherDatabase {
     fun execute(sql: String)

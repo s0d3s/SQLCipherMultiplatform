@@ -12,7 +12,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "sqlite-multicrypt"
+rootProject.name = "SQLCipherMultiplatform"
 
 include(
     ":kmp-api",

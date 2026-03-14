@@ -68,7 +68,7 @@ static int apply_key_bytes(JNIEnv *env, sqlite3 *db, jbyteArray jkey, int is_rek
     return rc;
 }
 
-JNIEXPORT jlong JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_open(
+JNIEXPORT jlong JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_open(
     JNIEnv *env,
     jclass clazz,
     jstring jpath
@@ -101,7 +101,7 @@ JNIEXPORT jlong JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_open(
     return (jlong)(intptr_t)db;
 }
 
-JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_key(
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_key(
     JNIEnv *env,
     jclass clazz,
     jlong handle,
@@ -129,7 +129,7 @@ JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_key(
     return rc;
 }
 
-JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_keyBytes(
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_keyBytes(
     JNIEnv *env,
     jclass clazz,
     jlong handle,
@@ -145,7 +145,7 @@ JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_keyBytes(
     return apply_key_bytes(env, db, jkey, 0);
 }
 
-JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_rekeyBytes(
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_rekeyBytes(
     JNIEnv *env,
     jclass clazz,
     jlong handle,
@@ -161,7 +161,7 @@ JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_rekeyBytes(
     return apply_key_bytes(env, db, jkey, 1);
 }
 
-JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_close(
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_close(
     JNIEnv *env,
     jclass clazz,
     jlong handle
@@ -175,7 +175,7 @@ JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_close(
     return sqlite3_close_v2(db);
 }
 
-JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_exec(
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_exec(
     JNIEnv *env,
     jclass clazz,
     jlong handle,
@@ -204,7 +204,7 @@ JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_exec(
     return rc;
 }
 
-JNIEXPORT jlong JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_prepare(
+JNIEXPORT jlong JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_prepare(
     JNIEnv *env,
     jclass clazz,
     jlong handle,
@@ -230,7 +230,7 @@ JNIEXPORT jlong JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_prepare(
     return (jlong)(intptr_t)stmt;
 }
 
-JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_step(
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_step(
     JNIEnv *env,
     jclass clazz,
     jlong statementHandle
@@ -249,7 +249,7 @@ JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_step(
     return rc;
 }
 
-JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_bindNull(
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_bindNull(
     JNIEnv *env,
     jclass clazz,
     jlong statementHandle,
@@ -269,7 +269,7 @@ JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_bindNull(
     return rc;
 }
 
-JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_bindInt(
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_bindInt(
     JNIEnv *env,
     jclass clazz,
     jlong statementHandle,
@@ -290,7 +290,7 @@ JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_bindInt(
     return rc;
 }
 
-JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_bindLong(
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_bindLong(
     JNIEnv *env,
     jclass clazz,
     jlong statementHandle,
@@ -311,7 +311,7 @@ JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_bindLong(
     return rc;
 }
 
-JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_bindDouble(
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_bindDouble(
     JNIEnv *env,
     jclass clazz,
     jlong statementHandle,
@@ -332,7 +332,7 @@ JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_bindDouble(
     return rc;
 }
 
-JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_bindText(
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_bindText(
     JNIEnv *env,
     jclass clazz,
     jlong statementHandle,
@@ -364,7 +364,7 @@ JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_bindText(
     return rc;
 }
 
-JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_bindBlob(
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_bindBlob(
     JNIEnv *env,
     jclass clazz,
     jlong statementHandle,
@@ -397,7 +397,7 @@ JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_bindBlob(
     return rc;
 }
 
-JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_clearBindings(
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_clearBindings(
     JNIEnv *env,
     jclass clazz,
     jlong statementHandle
@@ -416,7 +416,7 @@ JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_clearBinding
     return rc;
 }
 
-JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_reset(
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_reset(
     JNIEnv *env,
     jclass clazz,
     jlong statementHandle
@@ -435,7 +435,7 @@ JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_reset(
     return rc;
 }
 
-JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_changes(
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_changes(
     JNIEnv *env,
     jclass clazz,
     jlong handle
@@ -449,7 +449,7 @@ JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_changes(
     return sqlite3_changes(db);
 }
 
-JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_columnCount(
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_columnCount(
     JNIEnv *env,
     jclass clazz,
     jlong statementHandle
@@ -463,7 +463,7 @@ JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_columnCount(
     return sqlite3_column_count(stmt);
 }
 
-JNIEXPORT jstring JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_columnName(
+JNIEXPORT jstring JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_columnName(
     JNIEnv *env,
     jclass clazz,
     jlong statementHandle,
@@ -483,7 +483,7 @@ JNIEXPORT jstring JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_columnNam
     return (*env)->NewStringUTF(env, name);
 }
 
-JNIEXPORT jstring JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_columnText(
+JNIEXPORT jstring JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_columnText(
     JNIEnv *env,
     jclass clazz,
     jlong statementHandle,
@@ -503,7 +503,7 @@ JNIEXPORT jstring JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_columnTex
     return (*env)->NewStringUTF(env, (const char *)text);
 }
 
-JNIEXPORT jint JNICALL Java_dev_boosted_sqlcipher_jdbc_NativeBridge_finalizeStmt(
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_finalizeStmt(
     JNIEnv *env,
     jclass clazz,
     jlong statementHandle
