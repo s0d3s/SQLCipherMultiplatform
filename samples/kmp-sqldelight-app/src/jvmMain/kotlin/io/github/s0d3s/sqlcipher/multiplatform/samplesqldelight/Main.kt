@@ -11,83 +11,100 @@ import java.util.Properties
 fun main() {
     printRuntimeTargetInfo()
 
-    val dbPath = File("sample-kmp-sqldelight-encrypted.db").absolutePath
-    val dbFile = File(dbPath)
+    val dbFile = File("sample-kmp-sqldelight-encrypted.db").absoluteFile
     if (dbFile.exists()) {
         dbFile.delete()
     }
 
-    val key = "secret-passphrase-v1".encodeToByteArray()
-    val keyCopyForProps = key.copyOf()
-
-    Class.forName("io.github.s0d3s.sqlcipher.multiplatform.jdbc.SqlCipherDriver")
+    val key = "kmp-sqldelight-secret-v1".encodeToByteArray()
 
     try {
-        val props = Properties().apply {
-            put(SqlCipherJdbcProperties.KEY_BYTES, keyCopyForProps)
-            // SQLDelight JDBC driver may reuse one Properties object for future connections.
-            // We keep key bytes until the driver is closed, then zeroize manually in finally.
-            put(SqlCipherJdbcProperties.SCRUB_KEY_MATERIAL_AFTER_CONNECT, false)
+        runCheck("CRUD flow") {
+            runCrudFlow(dbFile.absolutePath, key)
+        }
+        runCheck("Encrypted-at-rest validation") {
+            verifyEncryptionAtRest(dbFile, plaintextMarkers = listOf("Alpha", "Beta", "DELETE"))
+        }
+        runCheck("Correct-key read validation") {
+            verifyCanReadWithCorrectKey(dbFile.absolutePath, key)
+        }
+        runCheck("Wrong-key rejection") {
+            verifyWrongKeyRejected(dbFile.absolutePath)
         }
 
-        val driver = JdbcSqliteDriver(
-            url = "jdbc:sqlcipher:$dbPath",
-            properties = props
-        )
+        println("KMP SQLDelight sample verification passed")
+    } finally {
+        key.fill(0)
+    }
+}
 
+private inline fun runCheck(name: String, block: () -> Unit) {
+    println("[TEST] $name")
+    try {
+        block()
+        println("[PASS] $name")
+    } catch (t: Throwable) {
+        println("[FAIL] $name :: ${t.message}")
+        throw t
+    }
+}
+
+private fun runCrudFlow(dbPath: String, key: ByteArray) {
+    val keyCopyForProps = key.copyOf()
+    val properties = Properties().apply {
+        put(SqlCipherJdbcProperties.KEY_BYTES, keyCopyForProps)
+        put(SqlCipherJdbcProperties.SCRUB_KEY_MATERIAL_AFTER_CONNECT, false)
+    }
+
+    try {
+        val driver = JdbcSqliteDriver(url = "jdbc:sqlcipher:$dbPath", properties = properties)
         driver.use { sqlDriver ->
             SampleDatabase.Schema.create(sqlDriver)
             val database = SampleDatabase(sqlDriver)
-            val queries = database.teamStatsQueries
+            val queries = database.crudSampleQueries
 
-            queries.insertTeam(id = 1, name = "Lions")
-            queries.insertTeam(id = 2, name = "Wolves")
-            queries.insertTeam(id = 3, name = "Eagles")
+            queries.insertUser(id = 1, name = "Alpha", age = 30)
+            queries.insertUser(id = 2, name = "Beta", age = 25)
+            queries.insertUser(id = 3, name = "Gamma", age = 40)
 
-            listOf(10L, 20L, 15L).forEach { points -> queries.insertScore(team_id = 1, points = points) }
-            listOf(8L, 9L, 11L, 12L).forEach { points -> queries.insertScore(team_id = 2, points = points) }
-            listOf(25L, 30L).forEach { points -> queries.insertScore(team_id = 3, points = points) }
+            queries.insertTask(user_id = 1, title = "CREATE", done = 0)
+            queries.insertTask(user_id = 1, title = "UPDATE", done = 0)
+            queries.insertTask(user_id = 2, title = "DELETE", done = 1)
 
-            println("Team aggregations:")
-            queries.teamAggregations().executeAsList().forEach { row ->
-                println("  $row")
-            }
+            queries.markTaskDoneByTitle(title = "UPDATE")
+            queries.deleteTaskByTitle(title = "DELETE")
 
-            val global = queries.globalAggregations().executeAsOne()
-            println("Global aggregations: $global")
+            val titles = queries.allTaskTitles().executeAsList()
+            check(titles == listOf("CREATE", "UPDATE")) { "Unexpected task titles: $titles" }
+
+            val openTasks = queries.openTasksCount().executeAsOne()
+            check(openTasks == 1L) { "Expected 1 open task, got $openTasks" }
+
+            val doneTasks = queries.doneTasksCount().executeAsOne()
+            check(doneTasks == 1L) { "Expected 1 done task, got $doneTasks" }
+
+            val usersCount = queries.usersCount().executeAsOne()
+            check(usersCount == 3L) { "Expected 3 users, got $usersCount" }
         }
-
-        verifyEncryptionAtRest(dbFile)
-        verifyCanReadWithCorrectKey(dbPath, key)
-        verifyWrongKeyRejected(dbPath)
-        println("Security checks passed: encrypted at rest + wrong key rejected")
     } finally {
-        key.fill(0)
         keyCopyForProps.fill(0)
     }
 }
 
-private fun verifyEncryptionAtRest(dbFile: File) {
+private fun verifyEncryptionAtRest(dbFile: File, plaintextMarkers: List<String>) {
     val bytes = dbFile.readBytes()
     val sqliteHeader = "SQLite format 3\u0000".encodeToByteArray()
 
-    check(bytes.size > sqliteHeader.size) {
-        "Database file is unexpectedly small"
-    }
+    check(bytes.size > sqliteHeader.size) { "Database file is unexpectedly small" }
 
     val header = bytes.copyOfRange(0, sqliteHeader.size)
     check(!header.contentEquals(sqliteHeader)) {
-        "Database header matches plain SQLite format. Expected SQLCipher-encrypted file"
+        "DB header matches plain SQLite format (expected encrypted SQLCipher file)"
     }
 
     val asLatin1 = bytes.toString(Charsets.ISO_8859_1)
-    val plaintextMarkers = listOf("Lions", "Wolves", "Eagles")
-    val leakedMarker = plaintextMarkers.firstOrNull { marker -> asLatin1.contains(marker) }
-    check(leakedMarker == null) {
-        "Detected plaintext marker in DB file: $leakedMarker"
-    }
-
-    println("At-rest verification: plaintext SQLite header and sample plaintext markers are absent")
+    val leaked = plaintextMarkers.firstOrNull { marker -> asLatin1.contains(marker) }
+    check(leaked == null) { "Detected plaintext marker in encrypted file: $leaked" }
 }
 
 private fun verifyCanReadWithCorrectKey(dbPath: String, key: ByteArray) {
@@ -98,25 +115,23 @@ private fun verifyCanReadWithCorrectKey(dbPath: String, key: ByteArray) {
 
     try {
         DriverManager.getConnection("jdbc:sqlcipher:$dbPath", props).use { connection ->
-            connection.createStatement().use { statement ->
-                val cipherVersion = statement.executeQuery("PRAGMA cipher_version").use { rs ->
+            connection.createStatement().use { st ->
+                val cipherVersion = st.executeQuery("PRAGMA cipher_version").use { rs ->
                     if (rs.next()) rs.getString(1) else null
                 }
+                check(!cipherVersion.isNullOrBlank()) { "PRAGMA cipher_version returned blank" }
 
-                check(!cipherVersion.isNullOrBlank()) {
-                    "PRAGMA cipher_version returned empty value"
+                val users = st.executeQuery("SELECT COUNT(*) FROM users").use { rs ->
+                    rs.next()
+                    rs.getInt(1)
                 }
-
-                val rowCount = statement.executeQuery("SELECT COUNT(*) FROM scores").use { rs ->
+                val tasks = st.executeQuery("SELECT COUNT(*) FROM tasks").use { rs ->
                     rs.next()
                     rs.getInt(1)
                 }
 
-                check(rowCount == 9) {
-                    "Unexpected rows count with correct key: $rowCount"
-                }
-
-                println("Correct-key verification: cipher_version=$cipherVersion, rows=$rowCount")
+                check(users == 3) { "Expected 3 users, got $users" }
+                check(tasks == 2) { "Expected 2 tasks, got $tasks" }
             }
         }
     } finally {
@@ -125,17 +140,18 @@ private fun verifyCanReadWithCorrectKey(dbPath: String, key: ByteArray) {
 }
 
 private fun verifyWrongKeyRejected(dbPath: String) {
-    val wrongKey = "totally-wrong-password".encodeToByteArray()
+    val wrongKey = "kmp-sqldelight-wrong-key".encodeToByteArray()
     val props = Properties().apply {
         put(SqlCipherJdbcProperties.KEY_BYTES, wrongKey)
     }
 
     try {
+        println("[INFO] Intentionally checking wrong-key rejection; SQLCipher may emit native ERROR CORE logs here")
         var rejected = false
         try {
             DriverManager.getConnection("jdbc:sqlcipher:$dbPath", props).use { connection ->
-                connection.createStatement().use { statement ->
-                    statement.executeQuery("SELECT COUNT(*) FROM scores").use { rs ->
+                connection.createStatement().use { st ->
+                    st.executeQuery("SELECT COUNT(*) FROM users").use { rs ->
                         if (rs.next()) {
                             rs.getInt(1)
                         }
@@ -146,9 +162,7 @@ private fun verifyWrongKeyRejected(dbPath: String) {
             rejected = true
         }
 
-        check(rejected) {
-            "Wrong key unexpectedly succeeded"
-        }
+        check(rejected) { "Wrong key unexpectedly succeeded" }
     } finally {
         wrongKey.fill(0)
     }

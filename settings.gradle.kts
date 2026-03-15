@@ -1,5 +1,6 @@
 pluginManagement {
     repositories {
+        google()
         gradlePluginPortal()
         mavenCentral()
     }
@@ -8,6 +9,7 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
+        google()
         mavenCentral()
     }
 }
@@ -19,5 +21,6 @@ include(
     ":jdbc-sqlcipher-jvm",
     ":native-bridge",
     ":samples:desktop-jvm",
+    ":samples:kmp-basic-app",
     ":samples:kmp-sqldelight-app"
 )

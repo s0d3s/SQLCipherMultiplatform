@@ -1,6 +1,7 @@
 plugins {
     kotlin("multiplatform") version "1.9.24" apply false
     kotlin("jvm") version "1.9.24" apply false
+    id("com.android.library") version "8.2.2" apply false
     id("app.cash.sqldelight") version "2.0.2" apply false
     base
 }
@@ -53,4 +54,14 @@ tasks.register<Exec>("updateSqlcipherAmalgamation") {
 
         commandLine(command)
     }
+}
+
+tasks.register("verifySamples") {
+    group = "verification"
+    description = "Runs all executable sample verifications (JDBC, KMP basic, KMP SQLDelight)"
+    dependsOn(
+        ":samples:desktop-jvm:verifySample",
+        ":samples:kmp-basic-app:verifySample",
+        ":samples:kmp-sqldelight-app:verifySample"
+    )
 }

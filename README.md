@@ -5,21 +5,26 @@ Windows-first MVP for a **Kotlin Multiplatform + JDBC wrapper** around **SQLCiph
 ## Implemented in this initial slice
 
 - Multi-module Gradle project scaffold
-- `:kmp-api` with common API and JVM actual implementation
+- `:kmp-api` with unified common API and platform actuals:
+  - JVM actual via custom JNI-backed JDBC driver
+  - Android actual via official SQLCipher for Android (`net.zetetic:android-database-sqlcipher`)
 - `:jdbc-sqlcipher-jvm` custom JDBC driver (`jdbc:sqlcipher:`)
+  - JDBC SPI registration via `META-INF/services/java.sql.Driver` (no explicit `Class.forName(...)` needed)
 - `:native-bridge` JNI bridge + CMake build scripts
 - JDBC prepared statement MVP support (`setString/setInt/setLong/setObject`, execute/update/query)
-- `:samples:desktop-jvm` runnable JVM sample
-- `:samples:kmp-sqldelight-app` KMP + SQLDelight sample using encrypted SQLCipher DB
+- `:samples:desktop-jvm` JDBC-only sample app (encrypted DB + CRUD + wrong-key rejection checks)
+- `:samples:kmp-basic-app` basic KMP sample app using `:kmp-api` (encrypted DB + CRUD + wrong-key rejection checks)
+- `:samples:kmp-sqldelight-app` KMP + SQLDelight sample app (encrypted DB + CRUD + wrong-key rejection checks)
 
 ## Project structure
 
-- `kmp-api` — common KMP API (`expect/actual`)
+- `kmp-api` — common KMP API (`expect/actual`, JVM + Android actuals)
 - `jdbc-sqlcipher-jvm` — JVM JDBC driver backed by JNI
 - `native-bridge` — C JNI layer linked against SQLCipher
 - `third_party/sqlcipher` — SQLCipher amalgamation source location
-- `samples/desktop-jvm` — end-to-end usage sample
-- `samples/kmp-sqldelight-app` — SQLDelight KMP sample (JVM target) using `jdbc:sqlcipher:`
+- `samples/desktop-jvm` — **App 1**: JDBC-only sample
+- `samples/kmp-basic-app` — **App 2**: basic KMP sample through `SqlCipherDatabaseFactory`
+- `samples/kmp-sqldelight-app` — **App 3**: KMP SQLDelight sample
 
 ## SQLCipher source requirement
 
@@ -42,6 +47,31 @@ Regenerate local amalgamation from submodule sources with:
 - optional pinned ref/tag: `./gradlew updateSqlcipherAmalgamation -Psqlcipher.ref=v4.13.0`
 
 See `third_party/sqlcipher/README.md`.
+
+## Unified API and platform behavior
+
+`SqlCipherDatabaseFactory` is the unified KMP entrypoint exposed from `commonMain`.
+
+- `initialize(platformContext)`
+  - JVM: no-op
+  - Android: required once before first `open(...)` (pass Android `Context`)
+- `open(path, key)` and `rekey(path, oldKey, newKey)` are available with one stable API surface.
+
+Android usage sketch:
+
+```kotlin
+SqlCipherDatabaseFactory.initialize(applicationContext)
+val db = SqlCipherDatabaseFactory.open("app.db", "secret")
+```
+
+JVM usage sketch:
+
+```kotlin
+SqlCipherDatabaseFactory.initialize() // optional no-op
+val db = SqlCipherDatabaseFactory.open("/abs/path/app.db", "secret")
+```
+
+JVM call sites do not need manual driver bootstrap (`Class.forName(...)`); the SQLCipher JDBC driver is discovered through JDBC SPI.
 
 ## Build and run (Phase 3 portability)
 
@@ -88,28 +118,39 @@ Examples:
 
 ### 4) Run sample app
 
-- `./gradlew :samples:desktop-jvm:run`
+- JDBC sample: `./gradlew :samples:desktop-jvm:run`
+- KMP basic sample: `./gradlew :samples:kmp-basic-app:run`
+- KMP SQLDelight sample: `./gradlew :samples:kmp-sqldelight-app:run`
 
-The sample now prints target runtime info and native load configuration, then runs DB operations and a rekey operation.
+All sample apps perform the same verification contract:
 
-The sample opens encrypted DB, applies key, creates table, inserts rows, and reads data.
-It now exercises direct statements, prepared statements, and rekey flow.
+- create encrypted DB with key
+- create tables and perform CRUD operations
+- verify encrypted-at-rest (non-plain SQLite header + no plaintext markers)
+- verify correct key can read data
+- verify wrong key is rejected
 
-### 5) Run SQLDelight KMP sample app (JVM)
+### 5) Run sample verification tasks (CI-friendly)
 
-- `./gradlew :samples:kmp-sqldelight-app:run`
+Each sample exposes `verifySample` task:
 
-This sample validates real KMP app usage through SQLDelight over the SQLCipher JDBC wrapper:
+- `./gradlew :samples:desktop-jvm:verifySample`
+- `./gradlew :samples:kmp-basic-app:verifySample`
+- `./gradlew :samples:kmp-sqldelight-app:verifySample`
 
-- opens encrypted DB with password (`KEY_BYTES`)
-- creates SQLDelight-managed schema (`teams`, `scores`)
-- inserts sample records
-- executes aggregation queries (per-team and global)
-- verifies encryption at rest (file header is not plain SQLite and plaintext markers are absent)
-- verifies correct key can read data and wrong key is rejected
+Aggregate task from root project:
 
-Note: the sample sets `scrubKeyMaterialAfterConnect=false` in connection properties because SQLDelight's JDBC driver keeps the same `Properties` instance for future connections.
-The sample then manually zeroizes key byte arrays after completion.
+- `./gradlew verifySamples`
+
+Console output format for all sample verifications is test-like and CI-friendly:
+
+- `[TEST] <check name>` when a check starts
+- `[PASS] <check name>` when a check succeeds
+- `[FAIL] <check name> :: <reason>` and process/task failure on any real check error
+
+Wrong-key verification is an expected negative test. During this check SQLCipher native layer may print `ERROR CORE ...` decrypt/HMAC messages; this is expected behavior for rejected keys and the check still prints `[PASS] Wrong-key rejection` when rejection is confirmed.
+
+Note: SQLDelight sample sets `scrubKeyMaterialAfterConnect=false` in connection properties because SQLDelight's JDBC driver may reuse one `Properties` instance for future connections. Key bytes are manually zeroized in finally blocks.
 
 ## Next roadmap
 

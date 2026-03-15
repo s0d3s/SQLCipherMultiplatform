@@ -1,0 +1,48 @@
+CREATE TABLE users (
+  id INTEGER NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  age INTEGER NOT NULL
+);
+
+CREATE TABLE tasks (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  title TEXT NOT NULL,
+  done INTEGER NOT NULL DEFAULT 0
+);
+
+insertUser:
+INSERT INTO users(id, name, age)
+VALUES (?, ?, ?);
+
+insertTask:
+INSERT INTO tasks(user_id, title, done)
+VALUES (?, ?, ?);
+
+markTaskDoneByTitle:
+UPDATE tasks
+SET done = 1
+WHERE title = ?;
+
+deleteTaskByTitle:
+DELETE FROM tasks
+WHERE title = ?;
+
+allTaskTitles:
+SELECT title
+FROM tasks
+ORDER BY id;
+
+openTasksCount:
+SELECT COUNT(*)
+FROM tasks
+WHERE done = 0;
+
+doneTasksCount:
+SELECT COUNT(*)
+FROM tasks
+WHERE done = 1;
+
+usersCount:
+SELECT COUNT(*)
+FROM users;

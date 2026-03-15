@@ -1,6 +1,5 @@
 plugins {
     kotlin("multiplatform")
-    id("app.cash.sqldelight")
 }
 
 kotlin {
@@ -15,24 +14,10 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
-                implementation("app.cash.sqldelight:runtime:2.0.2")
+                implementation(project(":kmp-api"))
             }
         }
-
-        val jvmMain by getting {
-            dependencies {
-                implementation(project(":jdbc-sqlcipher-jvm"))
-                implementation("app.cash.sqldelight:sqlite-driver:2.0.2")
-            }
-        }
-    }
-}
-
-sqldelight {
-    databases {
-        create("SampleDatabase") {
-            packageName.set("io.github.s0d3s.sqlcipher.multiplatform.samplesqldelight.db")
-        }
+        val jvmMain by getting
     }
 }
 
@@ -51,10 +36,10 @@ val jvmMainCompilation = kotlin.targets.getByName("jvm").compilations.getByName(
 
 tasks.register<JavaExec>("runJvmSample") {
     group = "application"
-    description = "Runs KMP SQLDelight sample on top of JDBC SQLCipher wrapper"
+    description = "Runs basic KMP sample on top of SqlCipherDatabaseFactory"
     dependsOn(":native-bridge:buildNative", "jvmJar")
 
-    mainClass.set("io.github.s0d3s.sqlcipher.multiplatform.samplesqldelight.MainKt")
+    mainClass.set("io.github.s0d3s.sqlcipher.multiplatform.samples.kmpbasic.MainKt")
     classpath(files(tasks.named("jvmJar"), jvmMainCompilation.runtimeDependencyFiles))
 
     jvmArgs("-Dsqlcipher.native.path=${nativeOutDir.get().asFile.absolutePath}")
@@ -69,6 +54,6 @@ tasks.register("run") {
 
 tasks.register("verifySample") {
     group = "verification"
-    description = "Runs KMP SQLDelight sample end-to-end checks (CRUD + encrypted-at-rest + wrong-key rejection)"
+    description = "Runs basic KMP sample end-to-end checks (CRUD + encrypted-at-rest + wrong-key rejection)"
     dependsOn("runJvmSample")
 }

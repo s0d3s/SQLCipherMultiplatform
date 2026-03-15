@@ -17,6 +17,14 @@ interface SqlCipherDatabase {
 }
 
 expect object SqlCipherDatabaseFactory {
+    /**
+     * Performs platform-specific SQLCipher runtime initialization.
+     *
+     * - JVM: no-op
+     * - Android: pass Android Context (as [Any]) once before first `open(...)`
+     */
+    fun initialize(platformContext: Any? = null)
+
     fun open(path: String, key: ByteArray): SqlCipherDatabase
     fun open(path: String, key: String): SqlCipherDatabase
 

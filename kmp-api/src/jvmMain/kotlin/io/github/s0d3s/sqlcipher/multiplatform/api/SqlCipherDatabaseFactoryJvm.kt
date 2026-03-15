@@ -7,9 +7,11 @@ import java.sql.DriverManager
 import java.util.Properties
 
 actual object SqlCipherDatabaseFactory {
-    actual fun open(path: String, key: ByteArray): SqlCipherDatabase {
-        Class.forName("io.github.s0d3s.sqlcipher.multiplatform.jdbc.SqlCipherDriver")
+    actual fun initialize(platformContext: Any?) {
+        // JVM implementation does not require runtime initialization.
+    }
 
+    actual fun open(path: String, key: ByteArray): SqlCipherDatabase {
         val keyBytes = key.copyOf()
         val props = Properties().apply {
             put(SqlCipherJdbcProperties.KEY_BYTES, keyBytes)
