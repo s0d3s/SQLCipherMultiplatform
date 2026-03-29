@@ -44,11 +44,11 @@ jobs:
 
       - name: Build native bridge explicitly (Windows)
         if: runner.os == 'Windows'
-        run: ./gradlew :native-bridge:buildNative :native-bridge:copyRuntimeDependencies -Pnative.buildType=Release
+        run: ./gradlew :native-bridge:buildNative :native-bridge:copyRuntimeDependencies "-Pnative.buildType=Release"
 
       - name: Prepare windows native artifact resources (Windows)
         if: runner.os == 'Windows'
-        run: ./gradlew :native-artifacts:sqlcipher-native-windows-x64:processResources -Pnative.buildType=Release
+        run: ./gradlew :native-artifacts:sqlcipher-native-windows-x64:processResources "-Pnative.buildType=Release"
 
       - name: Debug native build folders (Windows)
         if: runner.os == 'Windows'
@@ -61,7 +61,7 @@ jobs:
 
       - name: Verify samples (Windows)
         if: runner.os == 'Windows'
-        run: ./gradlew verifySamples -Pnative.buildType=Release --stacktrace --info
+        run: ./gradlew verifySamples "-Pnative.buildType=Release" --stacktrace --info
 
       - name: Debug native build folders on failure (Windows)
         if: failure() && runner.os == 'Windows'
@@ -74,7 +74,7 @@ jobs:
 
       - name: Run native smoke test (Windows)
         if: runner.os == 'Windows'
-        run: ./gradlew :jdbc-sqlcipher-jvm:nativeSmokeTest -Pnative.buildType=Release
+        run: ./gradlew :jdbc-sqlcipher-jvm:nativeSmokeTest "-Pnative.buildType=Release"
 
       - name: Publish dry-run to Maven local
         run: ./gradlew publishToMavenLocal
