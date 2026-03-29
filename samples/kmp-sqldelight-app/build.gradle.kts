@@ -41,11 +41,7 @@ val nativeBuildType = providers.gradleProperty("native.buildType")
     .orElse(System.getenv("NATIVE_BUILD_TYPE") ?: if (isWindowsHost) "Release" else "RelWithDebInfo")
 val nativeLibBasename = providers.gradleProperty("native.lib.basename").orElse("sqlcipher_jni")
 
-val nativeOutDir = if (isWindowsHost) {
-    project(":native-bridge").layout.buildDirectory.dir("cmake/out/${nativeBuildType.get()}")
-} else {
-    project(":native-bridge").layout.buildDirectory.dir("cmake/out")
-}
+val nativeOutDir = project(":native-bridge").layout.buildDirectory.dir("cmake/out")
 
 val jvmMainCompilation = kotlin.targets.getByName("jvm").compilations.getByName("main")
 
