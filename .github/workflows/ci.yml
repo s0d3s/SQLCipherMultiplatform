@@ -30,6 +30,15 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
+      - name: Install OpenSSL for native build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          git clone https://github.com/microsoft/vcpkg "$env:GITHUB_WORKSPACE/third_party/vcpkg"
+          & "$env:GITHUB_WORKSPACE/third_party/vcpkg/bootstrap-vcpkg.bat" -disableMetrics
+          & "$env:GITHUB_WORKSPACE/third_party/vcpkg/vcpkg.exe" install openssl:x64-windows zlib:x64-windows
+          "VCPKG_ROOT=$env:GITHUB_WORKSPACE/third_party/vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Compile key modules
         run: ./gradlew :jdbc-sqlcipher-jvm:compileKotlin :kmp-api:compileKotlinJvm
 
