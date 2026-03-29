@@ -107,9 +107,13 @@ internal object NativeBridge {
     @JvmStatic external fun reset(statementHandle: Long): Int
     @JvmStatic external fun step(statementHandle: Long): Int
     @JvmStatic external fun changes(handle: Long): Int
+    @JvmStatic external fun lastErrorCode(handle: Long): Int
     @JvmStatic external fun columnCount(statementHandle: Long): Int
     @JvmStatic external fun columnName(statementHandle: Long, columnIndex: Int): String
+    @JvmStatic external fun columnDeclType(statementHandle: Long, columnIndex: Int): String?
+    @JvmStatic external fun columnType(statementHandle: Long, columnIndex: Int): Int
     @JvmStatic external fun columnText(statementHandle: Long, columnIndex: Int): String?
+    @JvmStatic external fun columnBlob(statementHandle: Long, columnIndex: Int): ByteArray?
     @JvmStatic external fun finalizeStmt(statementHandle: Long): Int
 
     private fun resolveTargetLibrary(configuredPath: File, libBasename: String): File? {

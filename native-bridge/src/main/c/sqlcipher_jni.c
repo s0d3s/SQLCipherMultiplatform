@@ -449,6 +449,20 @@ JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeB
     return sqlite3_changes(db);
 }
 
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_lastErrorCode(
+    JNIEnv *env,
+    jclass clazz,
+    jlong handle
+) {
+    (void)env;
+    (void)clazz;
+    sqlite3 *db = as_db(handle);
+    if (db == NULL) {
+        return SQLITE_MISUSE;
+    }
+    return sqlite3_extended_errcode(db);
+}
+
 JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_columnCount(
     JNIEnv *env,
     jclass clazz,
@@ -483,6 +497,41 @@ JNIEXPORT jstring JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_Nati
     return (*env)->NewStringUTF(env, name);
 }
 
+JNIEXPORT jstring JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_columnDeclType(
+    JNIEnv *env,
+    jclass clazz,
+    jlong statementHandle,
+    jint columnIndex
+) {
+    (void)clazz;
+    sqlite3_stmt *stmt = as_stmt(statementHandle);
+    if (stmt == NULL) {
+        throw_sql_exception(env, "Native statement handle is null");
+        return NULL;
+    }
+
+    const char *type_name = sqlite3_column_decltype(stmt, columnIndex);
+    if (type_name == NULL) {
+        return NULL;
+    }
+    return (*env)->NewStringUTF(env, type_name);
+}
+
+JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_columnType(
+    JNIEnv *env,
+    jclass clazz,
+    jlong statementHandle,
+    jint columnIndex
+) {
+    (void)env;
+    (void)clazz;
+    sqlite3_stmt *stmt = as_stmt(statementHandle);
+    if (stmt == NULL) {
+        return SQLITE_NULL;
+    }
+    return sqlite3_column_type(stmt, columnIndex);
+}
+
 JNIEXPORT jstring JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_columnText(
     JNIEnv *env,
     jclass clazz,
@@ -501,6 +550,38 @@ JNIEXPORT jstring JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_Nati
         return NULL;
     }
     return (*env)->NewStringUTF(env, (const char *)text);
+}
+
+JNIEXPORT jbyteArray JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_columnBlob(
+    JNIEnv *env,
+    jclass clazz,
+    jlong statementHandle,
+    jint columnIndex
+) {
+    (void)clazz;
+    sqlite3_stmt *stmt = as_stmt(statementHandle);
+    if (stmt == NULL) {
+        throw_sql_exception(env, "Native statement handle is null");
+        return NULL;
+    }
+
+    if (sqlite3_column_type(stmt, columnIndex) == SQLITE_NULL) {
+        return NULL;
+    }
+
+    const void *blob = sqlite3_column_blob(stmt, columnIndex);
+    int len = sqlite3_column_bytes(stmt, columnIndex);
+    if (blob == NULL || len < 0) {
+        return NULL;
+    }
+
+    jbyteArray result = (*env)->NewByteArray(env, len);
+    if (result == NULL) {
+        return NULL;
+    }
+
+    (*env)->SetByteArrayRegion(env, result, 0, len, (const jbyte *)blob);
+    return result;
 }
 
 JNIEXPORT jint JNICALL Java_io_github_s0d3s_sqlcipher_multiplatform_jdbc_NativeBridge_finalizeStmt(

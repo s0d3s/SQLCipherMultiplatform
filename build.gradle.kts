@@ -1,6 +1,8 @@
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.plugins.signing.SigningExtension
+import org.gradle.jvm.toolchain.JavaLanguageVersion
 
 plugins {
     kotlin("multiplatform") version "1.9.24" apply false
@@ -17,6 +19,10 @@ allprojects {
 
 subprojects {
     pluginManager.withPlugin("java-library") {
+        extensions.configure<JavaPluginExtension>("java") {
+            toolchain.languageVersion.set(JavaLanguageVersion.of(17))
+        }
+
         pluginManager.withPlugin("maven-publish") {
             extensions.configure<PublishingExtension>("publishing") {
                 if (publications.findByName("mavenJava") == null && components.findByName("java") != null) {

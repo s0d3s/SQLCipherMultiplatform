@@ -26,7 +26,7 @@ class SqlCipherDriver : Driver {
         val nativeHandle = NativeBridge.open(dbPath)
         try {
             applyKey(nativeHandle, info)
-            SqlCipherSecurityDefaults.apply(nativeHandle)
+            SqlCipherSecurityDefaults.apply(nativeHandle, info)
 
             return SqlCipherConnectionProxy.create(nativeHandle)
         } catch (e: Throwable) {
@@ -59,7 +59,7 @@ class SqlCipherDriver : Driver {
     override fun jdbcCompliant(): Boolean = false
 
     override fun getParentLogger(): Logger {
-        throw SQLFeatureNotSupportedException("Logging is not implemented in MVP")
+        throw SQLFeatureNotSupportedException("Logging is not implemented in SQLCipher JDBC wrapper")
     }
 
     private fun applyKey(nativeHandle: Long, info: Properties?) {

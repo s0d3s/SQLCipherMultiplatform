@@ -30,7 +30,7 @@ val prepareWindowsNativeResources = tasks.register<Sync>("prepareWindowsNativeRe
             include("*.dll")
         }
     } else if (isWindowsHost) {
-        dependsOn(":native-bridge:buildNative")
+        dependsOn(":native-bridge:buildNative", ":native-bridge:copyRuntimeDependencies")
         from(nativeOutDir) {
             include("*.dll")
         }

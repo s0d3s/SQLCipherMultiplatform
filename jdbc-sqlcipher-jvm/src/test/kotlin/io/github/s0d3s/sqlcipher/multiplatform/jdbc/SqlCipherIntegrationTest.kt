@@ -3,11 +3,14 @@ package io.github.s0d3s.sqlcipher.multiplatform.jdbc
 import java.nio.file.Files
 import java.sql.Connection
 import java.sql.DriverManager
+import java.sql.SQLException
 import java.util.Properties
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty
 
@@ -100,6 +103,38 @@ class SqlCipherIntegrationTest {
     }
 
     @Test
+    fun transaction_savepoints_shouldWork_whenAutoCommitDisabled() {
+        val dir = Files.createTempDirectory("sqlcipher-it-")
+        val dbPath = dir.resolve("savepoint-test.db").toAbsolutePath().toString()
+
+        openConnection(dbPath).use { connection ->
+            connection.createStatement().use { st ->
+                st.execute("DROP TABLE IF EXISTS sp_test")
+                st.execute("CREATE TABLE sp_test(id INTEGER PRIMARY KEY, value TEXT NOT NULL)")
+            }
+
+            connection.autoCommit = false
+
+            connection.createStatement().use { st ->
+                st.execute("INSERT INTO sp_test(value) VALUES ('base')")
+            }
+
+            val sp = connection.setSavepoint("after_base")
+
+            connection.createStatement().use { st ->
+                st.execute("INSERT INTO sp_test(value) VALUES ('temp_1')")
+                st.execute("INSERT INTO sp_test(value) VALUES ('temp_2')")
+            }
+
+            connection.rollback(sp)
+            connection.releaseSavepoint(sp)
+            connection.commit()
+
+            assertEquals(1, queryCount(connection, "sp_test"))
+        }
+    }
+
+    @Test
     fun resultSet_metadata_and_null_semantics_shouldWork() {
         val dir = Files.createTempDirectory("sqlcipher-it-")
         val dbPath = dir.resolve("meta-null-test.db").toAbsolutePath().toString()
@@ -125,6 +160,43 @@ class SqlCipherIntegrationTest {
                     assertEquals(true, rs.wasNull())
                     assertEquals(3.5, rs.getDouble("amount"))
                     assertEquals(false, rs.wasNull())
+                }
+            }
+        }
+    }
+
+    @Test
+    fun resultSet_blob_and_object_type_mapping_shouldWork() {
+        val dir = Files.createTempDirectory("sqlcipher-it-")
+        val dbPath = dir.resolve("blob-object-test.db").toAbsolutePath().toString()
+
+        openConnection(dbPath).use { connection ->
+            connection.createStatement().use { st ->
+                st.execute("DROP TABLE IF EXISTS obj_test")
+                st.execute("CREATE TABLE obj_test(id INTEGER PRIMARY KEY, score REAL, payload BLOB, note TEXT)")
+            }
+
+            connection.prepareStatement("INSERT INTO obj_test(id, score, payload, note) VALUES (?, ?, ?, ?)").use { ps ->
+                ps.setInt(1, 1)
+                ps.setDouble(2, 2.75)
+                ps.setBytes(3, byteArrayOf(7, 8, 9))
+                ps.setString(4, "hello")
+                assertEquals(1, ps.executeUpdate())
+            }
+
+            connection.createStatement().use { st ->
+                st.executeQuery("SELECT id, score, payload, note FROM obj_test").use { rs ->
+                    val md = rs.metaData
+                    assertEquals(4, md.columnCount)
+                    assertEquals("id", md.getColumnName(1))
+                    assertEquals("score", md.getColumnLabel(2))
+                    assertEquals("payload", md.getColumnName(3))
+
+                    rs.next()
+                    assertEquals(1L, rs.getObject("id"))
+                    assertEquals(2.75, rs.getObject("score"))
+                    assertContentEquals(byteArrayOf(7, 8, 9), assertNotNull(rs.getBytes("payload")))
+                    assertEquals("hello", rs.getObject("note"))
                 }
             }
         }
@@ -212,6 +284,57 @@ class SqlCipherIntegrationTest {
         assertContentEquals(keyBytesOriginal, keyBytes)
         assertContentEquals(keyBytesOriginal, props[SqlCipherJdbcProperties.KEY_BYTES] as ByteArray)
         assertEquals("legacy-string-key", props.getProperty(SqlCipherJdbcProperties.KEY))
+    }
+
+    @Test
+    fun security_pragma_overrides_shouldApply_whenProvidedInProperties() {
+        val dir = Files.createTempDirectory("sqlcipher-it-")
+        val dbPath = dir.resolve("pragma-overrides.db").toAbsolutePath().toString()
+
+        val props = Properties().apply {
+            setProperty(SqlCipherJdbcProperties.KEY, "pragma-secret")
+            setProperty(SqlCipherJdbcProperties.CIPHER_COMPATIBILITY, "4")
+            setProperty(SqlCipherJdbcProperties.CIPHER_PAGE_SIZE, "4096")
+            setProperty(SqlCipherJdbcProperties.KDF_ITER, "64000")
+            setProperty(SqlCipherJdbcProperties.CIPHER_HMAC_ALGORITHM, "HMAC_SHA256")
+            setProperty(SqlCipherJdbcProperties.CIPHER_KDF_ALGORITHM, "PBKDF2_HMAC_SHA256")
+        }
+
+        DriverManager.getConnection("jdbc:sqlcipher:$dbPath", props).use { connection ->
+            connection.createStatement().use { st ->
+                st.executeQuery("PRAGMA kdf_iter").use { rs ->
+                    rs.next()
+                    assertEquals(64000, rs.getInt(1))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun wrong_key_failure_shouldNotLeak_key_material_and_shouldHave_sqlstate() {
+        val dir = Files.createTempDirectory("sqlcipher-it-")
+        val dbPath = dir.resolve("no-key-leak.db").toAbsolutePath().toString()
+
+        openConnectionWithKeyBytes(dbPath, "real-secret-value".encodeToByteArray()).use { connection ->
+            connection.createStatement().use { st ->
+                st.execute("CREATE TABLE IF NOT EXISTS t(id INTEGER PRIMARY KEY, value TEXT NOT NULL)")
+                st.execute("INSERT INTO t(value) VALUES ('ok')")
+            }
+        }
+
+        val wrongKey = "very-secret-user-input"
+        val ex = assertFailsWith<SQLException> {
+            openConnectionWithKeyBytes(dbPath, wrongKey.encodeToByteArray()).use { connection ->
+                connection.createStatement().use { st ->
+                    st.executeQuery("SELECT COUNT(*) FROM t").use { rs ->
+                        rs.next()
+                    }
+                }
+            }
+        }
+
+        assertNull(ex.message?.takeIf { it.contains(wrongKey) })
+        assertTrue(ex.sqlState.isNotBlank())
     }
 
     private fun openConnection(dbPath: String): Connection {
