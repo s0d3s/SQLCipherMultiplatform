@@ -175,9 +175,9 @@ Note: SQLDelight sample sets `scrubKeyMaterialAfterConnect=false` in connection 
 
 ## Production readiness roadmap
 
-Detailed phased plan is available in:
+Short Windows-first roadmap is available in:
 
-- [`PRODUCTION_READINESS_PLAN.md`](./PRODUCTION_READINESS_PLAN.md)
+- [`WINDOWS_FIRST_READINESS_PLAN.md`](./WINDOWS_FIRST_READINESS_PLAN.md)
 
 ## Maven Central publishing and CI secrets
 

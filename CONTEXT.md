@@ -262,14 +262,12 @@ Windows-first defaults are currently in place (Release output under `native-brid
 
 ## 10) Current roadmap pointer
 
-`PRODUCTION_READINESS_PLAN.md` defines phased path to production:
+`WINDOWS_FIRST_READINESS_PLAN.md` summarizes the current short roadmap for external use:
 
-1. JDBC correctness (batch, transactions, metadata, bindings)
-2. Security hardening (key handling, rekey policies)
-3. Native portability (Linux/macOS full support)
-4. Packaging/publishing
-5. CI/CD quality gates
-6. v1.0 release readiness
+1. JDBC correctness hardening
+2. Security hardening and key-handling safety
+3. Windows x64 release quality and publishing reliability
+4. Follow-up expansion to Linux/macOS payload support
 
 ---
 
