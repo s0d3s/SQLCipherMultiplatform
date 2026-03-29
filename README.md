@@ -73,6 +73,19 @@ val db = SqlCipherDatabaseFactory.open("/abs/path/app.db", "secret")
 
 JVM call sites do not need manual driver bootstrap (`Class.forName(...)`); the SQLCipher JDBC driver is discovered through JDBC SPI.
 
+## Native loading behavior (JVM)
+
+- Manual override is still supported:
+  - `-Dsqlcipher.native.path=<dir-or-file>`
+  - `-Dsqlcipher.native.lib.basename=<basename>`
+- By default (without `sqlcipher.native.path`), runtime now tries classpath-native resolution using:
+  - `META-INF/sqlcipher/native/<platform>/manifest.properties`
+- Current platform support:
+  - `windows-x64`: real native payload (JAR-embedded)
+  - `linux-x64`, `linux-arm64`, `macos-x64`, `macos-arm64`: stub manifests with explicit error message
+
+Note on “releasing” native libs: JVM does not provide safe in-process unloading for loaded native libraries. The runtime does best-effort cleanup of extracted temp files at process shutdown.
+
 ## Build and run (Phase 3 portability)
 
 ### 1) Compile JVM modules
@@ -165,6 +178,23 @@ Note: SQLDelight sample sets `scrubKeyMaterialAfterConnect=false` in connection 
 Detailed phased plan is available in:
 
 - [`PRODUCTION_READINESS_PLAN.md`](./PRODUCTION_READINESS_PLAN.md)
+
+## Maven Central publishing and CI secrets
+
+Publishing/signing is wired through Gradle and GitHub Actions.
+
+Required GitHub Secrets:
+
+- `SIGNING_KEY` (ASCII-armored private key)
+- `SIGNING_PASSWORD`
+- `SIGNING_KEY_ID` (recommended)
+- `MAVEN_CENTRAL_USERNAME`
+- `MAVEN_CENTRAL_PASSWORD`
+
+OS-specific native build/publish strategy:
+
+- Native artifacts are built on OS-specific runners.
+- Release workflow uses a single final publish job to avoid concurrent publication races for the same coordinates.
 
 ## Immediate next implementation slice
 

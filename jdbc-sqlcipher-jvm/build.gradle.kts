@@ -2,14 +2,27 @@ import java.io.File
 
 plugins {
     kotlin("jvm")
+    `java-library`
+    id("maven-publish")
+    id("signing")
 }
 
 kotlin {
     jvmToolchain(17)
 }
 
+java {
+    withSourcesJar()
+    withJavadocJar()
+}
+
 dependencies {
     implementation(kotlin("stdlib"))
+    runtimeOnly(project(":native-artifacts:sqlcipher-native-windows-x64"))
+    runtimeOnly(project(":native-artifacts:sqlcipher-native-linux-x64"))
+    runtimeOnly(project(":native-artifacts:sqlcipher-native-linux-arm64"))
+    runtimeOnly(project(":native-artifacts:sqlcipher-native-macos-x64"))
+    runtimeOnly(project(":native-artifacts:sqlcipher-native-macos-arm64"))
     testImplementation(kotlin("test-junit5"))
 }
 

@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [ "**" ]
+    tags-ignore: [ "v*" ]
+  pull_request:
+
+jobs:
+  build-and-verify:
+    name: Build & verify (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Compile key modules
+        run: ./gradlew :jdbc-sqlcipher-jvm:compileKotlin :kmp-api:compileKotlinJvm
+
+      - name: Verify samples (Windows)
+        if: runner.os == 'Windows'
+        run: ./gradlew verifySamples
+
+      - name: Run native smoke test (Windows)
+        if: runner.os == 'Windows'
+        run: ./gradlew :jdbc-sqlcipher-jvm:nativeSmokeTest
+
+      - name: Publish dry-run to Maven local
+        run: ./gradlew publishToMavenLocal
