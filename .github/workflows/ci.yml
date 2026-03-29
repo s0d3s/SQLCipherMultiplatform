@@ -42,13 +42,39 @@ jobs:
       - name: Compile key modules
         run: ./gradlew :jdbc-sqlcipher-jvm:compileKotlin :kmp-api:compileKotlinJvm
 
+      - name: Build native bridge explicitly (Windows)
+        if: runner.os == 'Windows'
+        run: ./gradlew :native-bridge:buildNative :native-bridge:copyRuntimeDependencies -Pnative.buildType=Release
+
+      - name: Prepare windows native artifact resources (Windows)
+        if: runner.os == 'Windows'
+        run: ./gradlew :native-artifacts:sqlcipher-native-windows-x64:processResources -Pnative.buildType=Release
+
+      - name: Debug native build folders (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "native-bridge/build/cmake/out tree:" 
+          Get-ChildItem -Path "$env:GITHUB_WORKSPACE/native-bridge/build/cmake/out" -Recurse -Force | Select-Object FullName,Length
+          Write-Host "windows native artifact resources tree:"
+          Get-ChildItem -Path "$env:GITHUB_WORKSPACE/native-artifacts/sqlcipher-native-windows-x64/build/resources/main/META-INF/sqlcipher/native/windows-x64" -Recurse -Force | Select-Object FullName,Length
+
       - name: Verify samples (Windows)
         if: runner.os == 'Windows'
-        run: ./gradlew verifySamples
+        run: ./gradlew verifySamples -Pnative.buildType=Release --stacktrace --info
+
+      - name: Debug native build folders on failure (Windows)
+        if: failure() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "native-bridge/build/cmake/out tree (failure dump):" 
+          Get-ChildItem -Path "$env:GITHUB_WORKSPACE/native-bridge/build/cmake/out" -Recurse -Force | Select-Object FullName,Length
+          Write-Host "windows native artifact resources tree (failure dump):"
+          Get-ChildItem -Path "$env:GITHUB_WORKSPACE/native-artifacts/sqlcipher-native-windows-x64/build/resources/main/META-INF/sqlcipher/native/windows-x64" -Recurse -Force | Select-Object FullName,Length
 
       - name: Run native smoke test (Windows)
         if: runner.os == 'Windows'
-        run: ./gradlew :jdbc-sqlcipher-jvm:nativeSmokeTest
+        run: ./gradlew :jdbc-sqlcipher-jvm:nativeSmokeTest -Pnative.buildType=Release
 
       - name: Publish dry-run to Maven local
         run: ./gradlew publishToMavenLocal
