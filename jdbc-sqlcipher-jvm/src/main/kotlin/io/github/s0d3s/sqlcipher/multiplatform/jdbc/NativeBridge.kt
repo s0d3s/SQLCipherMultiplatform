@@ -182,8 +182,13 @@ internal object NativeBridge {
             ?.filter { it.isNotBlank() }
             ?.distinct()
             .orEmpty()
-            .map { dependencyName ->
-                extractResource("$resourcePrefix/$dependencyName", outputDir.resolve(dependencyName))
+            .mapNotNull { dependencyName ->
+                val dependencyResourcePath = "$resourcePrefix/$dependencyName"
+                if (resourceExists(dependencyResourcePath)) {
+                    extractResource(dependencyResourcePath, outputDir.resolve(dependencyName))
+                } else {
+                    null
+                }
             }
 
         val requestedName = System.mapLibraryName(libBasename)

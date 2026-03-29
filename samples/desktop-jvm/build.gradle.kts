@@ -16,15 +16,10 @@ application {
 }
 
 val isWindowsHost = System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
-val nativeBuildType = providers.gradleProperty("native.buildType")
-    .orElse(System.getenv("NATIVE_BUILD_TYPE") ?: if (isWindowsHost) "Release" else "RelWithDebInfo")
 val nativeLibBasename = providers.gradleProperty("native.lib.basename").orElse("sqlcipher_jni")
-
-val nativeOutDir = project(":native-bridge").layout.buildDirectory.dir("cmake/out")
 
 tasks.named<JavaExec>("run") {
     dependsOn(":native-bridge:buildNative")
-    jvmArgs("-Dsqlcipher.native.path=${nativeOutDir.get().asFile.absolutePath}")
     jvmArgs("-Dsqlcipher.native.lib.basename=${nativeLibBasename.get()}")
 }
 
@@ -36,6 +31,5 @@ tasks.register<JavaExec>("verifySample") {
     mainClass.set(application.mainClass)
     classpath(sourceSets.main.get().runtimeClasspath)
 
-    jvmArgs("-Dsqlcipher.native.path=${nativeOutDir.get().asFile.absolutePath}")
     jvmArgs("-Dsqlcipher.native.lib.basename=${nativeLibBasename.get()}")
 }
