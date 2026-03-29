@@ -37,7 +37,17 @@ sqldelight {
 }
 
 val isWindowsHost = System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
+val nativeBuildType = providers.gradleProperty("native.buildType")
+    .orElse(System.getenv("NATIVE_BUILD_TYPE") ?: if (isWindowsHost) "Release" else "RelWithDebInfo")
 val nativeLibBasename = providers.gradleProperty("native.lib.basename").orElse("sqlcipher_jni")
+val nativeLibraryPath = providers.provider {
+    val mappedName = System.mapLibraryName(nativeLibBasename.get())
+    if (isWindowsHost) {
+        project(":native-bridge").layout.buildDirectory.file("cmake/out/${nativeBuildType.get()}/$mappedName").get().asFile.absolutePath
+    } else {
+        project(":native-bridge").layout.buildDirectory.file("cmake/out/$mappedName").get().asFile.absolutePath
+    }
+}
 
 val jvmMainCompilation = kotlin.targets.getByName("jvm").compilations.getByName("main")
 
@@ -49,6 +59,7 @@ tasks.register<JavaExec>("runJvmSample") {
     mainClass.set("io.github.s0d3s.sqlcipher.multiplatform.samplesqldelight.MainKt")
     classpath(files(tasks.named("jvmJar"), jvmMainCompilation.runtimeDependencyFiles))
 
+    jvmArgs("-Dsqlcipher.native.path=${nativeLibraryPath.get()}")
     jvmArgs("-Dsqlcipher.native.lib.basename=${nativeLibBasename.get()}")
 }
 
