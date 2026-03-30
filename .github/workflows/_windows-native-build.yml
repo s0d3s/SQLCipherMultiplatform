@@ -68,20 +68,15 @@ jobs:
         run: ./gradlew :jdbc-sqlcipher-jvm:compileKotlin :kmp-api:compileKotlinJvm --stacktrace
 
       - name: Build Windows native artifact module
-        run: >-
-          ./gradlew
-          :native-artifacts:sqlcipher-native-windows-x64:jar
-          :native-artifacts:sqlcipher-native-windows-x64:verifyWindowsNativePayload
-          -Pnative.buildType=${{ inputs.native-build-type }}
-          --stacktrace
+        run: ./gradlew :native-artifacts:sqlcipher-native-windows-x64:jar :native-artifacts:sqlcipher-native-windows-x64:verifyWindowsNativePayload "-Pnative.buildType=${{ inputs.native-build-type }}" --stacktrace
 
       - name: Verify samples
         if: ${{ inputs.run-verify-samples }}
-        run: ./gradlew verifySamples -Pnative.buildType=${{ inputs.native-build-type }} --stacktrace --info
+        run: ./gradlew verifySamples "-Pnative.buildType=${{ inputs.native-build-type }}" --stacktrace --info
 
       - name: Run native smoke test
         if: ${{ inputs.run-native-smoke-test }}
-        run: ./gradlew :jdbc-sqlcipher-jvm:nativeSmokeTest -Pnative.buildType=${{ inputs.native-build-type }} --stacktrace
+        run: ./gradlew :jdbc-sqlcipher-jvm:nativeSmokeTest "-Pnative.buildType=${{ inputs.native-build-type }}" --stacktrace
 
       - name: Publish dry-run to Maven local
         if: ${{ inputs.run-publish-to-maven-local }}
