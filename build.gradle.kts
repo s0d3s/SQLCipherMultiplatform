@@ -27,7 +27,7 @@ plugins {
 
 allprojects {
     group = "io.github.s0d3s.sqlcipher.multiplatform"
-    version = "0.1.0-SNAPSHOT"
+    version = (findProperty("releaseVersion") as String?) ?: "0.1.0-SNAPSHOT"
 }
 
 subprojects {

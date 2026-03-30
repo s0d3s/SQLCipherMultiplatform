@@ -95,6 +95,12 @@ jobs:
           SIGNING_KEY_ID: ${{ secrets.SIGNING_KEY_ID }}
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-        run: >-
-          ./gradlew publish
-          -Pnative.windowsPayloadDir=build/windows-native-payload
+        run: |
+          VERSION_ARG=""
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION_ARG="-PreleaseVersion=${GITHUB_REF_NAME#v}"
+          fi
+
+          ./gradlew publish \
+            ${VERSION_ARG} \
+            -Pnative.windowsPayloadDir=build/windows-native-payload
