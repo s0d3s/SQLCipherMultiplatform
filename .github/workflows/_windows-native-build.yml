@@ -67,8 +67,15 @@ jobs:
       - name: Compile key JVM modules
         run: ./gradlew :jdbc-sqlcipher-jvm:compileKotlin :kmp-api:compileKotlinJvm --stacktrace
 
-      - name: Build Windows native artifact module
-        run: ./gradlew :native-artifacts:sqlcipher-native-windows-x64:jar :native-artifacts:sqlcipher-native-windows-x64:verifyWindowsNativePayload "-Pnative.buildType=${{ inputs.native-build-type }}" --stacktrace
+      - name: Build Windows native bridge and artifact module
+        run: >-
+          ./gradlew
+          :native-bridge:buildNative
+          :native-bridge:copyRuntimeDependencies
+          :native-artifacts:sqlcipher-native-windows-x64:processResources
+          :native-artifacts:sqlcipher-native-windows-x64:jar
+          "-Pnative.buildType=${{ inputs.native-build-type }}"
+          --stacktrace
 
       - name: Verify samples
         if: ${{ inputs.run-verify-samples }}
@@ -107,3 +114,21 @@ jobs:
             **/build/reports/tests/**
             **/build/test-results/**
           if-no-files-found: ignore
+
+      - name: Dump native output folders on failure
+        if: ${{ failure() }}
+        shell: pwsh
+        run: |
+          Write-Host "native-bridge/build/cmake/out tree:"
+          if (Test-Path "$env:GITHUB_WORKSPACE/native-bridge/build/cmake/out") {
+            Get-ChildItem -Path "$env:GITHUB_WORKSPACE/native-bridge/build/cmake/out" -Recurse -Force | Select-Object FullName,Length
+          } else {
+            Write-Host "(missing) $env:GITHUB_WORKSPACE/native-bridge/build/cmake/out"
+          }
+
+          Write-Host "windows artifact resources tree:"
+          if (Test-Path "$env:GITHUB_WORKSPACE/native-artifacts/sqlcipher-native-windows-x64/build/resources/main/META-INF/sqlcipher/native/windows-x64") {
+            Get-ChildItem -Path "$env:GITHUB_WORKSPACE/native-artifacts/sqlcipher-native-windows-x64/build/resources/main/META-INF/sqlcipher/native/windows-x64" -Recurse -Force | Select-Object FullName,Length
+          } else {
+            Write-Host "(missing) $env:GITHUB_WORKSPACE/native-artifacts/sqlcipher-native-windows-x64/build/resources/main/META-INF/sqlcipher/native/windows-x64"
+          }
