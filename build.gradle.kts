@@ -4,6 +4,19 @@ import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.plugins.signing.SigningExtension
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 
+fun normalizeSigningKeyId(raw: String?): String? {
+    val trimmed = raw?.trim()?.removePrefix("0x")?.removePrefix("0X") ?: return null
+    if (trimmed.isBlank()) return null
+    val normalized = trimmed.uppercase()
+    if (!normalized.matches(Regex("[0-9A-F]+"))) return raw
+    return when {
+        normalized.length == 8 -> "0x$normalized"
+        normalized.length == 16 -> "0x${normalized.takeLast(8)}"
+        normalized.length >= 40 -> "0x${normalized.takeLast(8)}"
+        else -> raw
+    }
+}
+
 plugins {
     kotlin("multiplatform") version "1.9.24" apply false
     kotlin("jvm") version "1.9.24" apply false
@@ -78,8 +91,8 @@ subprojects {
                 maven {
                     name = "sonatype"
                     val versionText = project.version.toString()
-                    val releaseUrl = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
-                    val snapshotUrl = "https://s01.oss.sonatype.org/content/repositories/snapshots/"
+                    val releaseUrl = "https://central.sonatype.com/repository/maven-releases/"
+                    val snapshotUrl = "https://central.sonatype.com/repository/maven-snapshots/"
                     url = uri(if (versionText.endsWith("SNAPSHOT")) snapshotUrl else releaseUrl)
 
                     credentials {
@@ -100,9 +113,10 @@ subprojects {
     pluginManager.withPlugin("signing") {
         val signingKey = (findProperty("signingInMemoryKey") as String?) ?: System.getenv("SIGNING_KEY")
         val signingPassword = (findProperty("signingInMemoryKeyPassword") as String?) ?: System.getenv("SIGNING_PASSWORD")
-        val signingKeyId = (findProperty("signingInMemoryKeyId") as String?)
+        val signingKeyIdRaw = (findProperty("signingInMemoryKeyId") as String?)
             ?: System.getenv("SIGNING_KEY_ID")
             ?: (findProperty("signing.keyId") as String?)
+        val signingKeyId = normalizeSigningKeyId(signingKeyIdRaw)
 
         extensions.configure<SigningExtension>("signing") {
             val isReleaseVersion = !project.version.toString().endsWith("SNAPSHOT")
