@@ -9,7 +9,33 @@ on:
 jobs:
   build-windows-native:
     name: Build Windows native artifact
-    runs-on: windows-latest
+    uses: ./.github/workflows/_windows-native-build.yml
+    with:
+      native-build-type: Release
+      run-verify-samples: false
+      run-native-smoke-test: false
+      run-publish-to-maven-local: false
+      upload-artifacts: true
+      artifact-prefix: release-windows-native
+
+  build-stub-native-jars:
+    name: Build stub native artifact jars (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: linux
+            os: ubuntu-latest
+            gradle_tasks: ":native-artifacts:sqlcipher-native-linux-x64:jar :native-artifacts:sqlcipher-native-linux-arm64:jar"
+            artifact_name: release-linux-native-jars
+            artifact_glob: "native-artifacts/sqlcipher-native-linux-*/build/libs/*.jar"
+          - label: macos
+            os: macos-latest
+            gradle_tasks: ":native-artifacts:sqlcipher-native-macos-x64:jar :native-artifacts:sqlcipher-native-macos-arm64:jar"
+            artifact_name: release-macos-native-jars
+            artifact_glob: "native-artifacts/sqlcipher-native-macos-*/build/libs/*.jar"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,72 +46,27 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Build Windows native payload
-        run: ./gradlew :native-bridge:buildNative -Pnative.target.os=windows -Pnative.target.arch=x64
+      - name: Build stub artifact modules
+        run: ./gradlew ${{ matrix.gradle_tasks }} --stacktrace
 
-      - name: Package Windows native artifact JAR
-        run: ./gradlew :native-artifacts:sqlcipher-native-windows-x64:jar
-
-      - name: Upload Windows payload
+      - name: Upload stub native artifact jars
         uses: actions/upload-artifact@v4
         with:
-          name: windows-native-payload
-          path: native-bridge/build/cmake/out/Release/*.dll
-
-  build-linux-native:
-    name: Build Linux native artifact (stub for now)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-
-      - name: Build Linux artifact modules
-        run: ./gradlew :native-artifacts:sqlcipher-native-linux-x64:jar :native-artifacts:sqlcipher-native-linux-arm64:jar
-
-  build-macos-native:
-    name: Build macOS native artifact (stub for now)
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-
-      - name: Build macOS artifact modules
-        run: ./gradlew :native-artifacts:sqlcipher-native-macos-x64:jar :native-artifacts:sqlcipher-native-macos-arm64:jar
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_glob }}
+          if-no-files-found: error
 
   publish:
     name: Publish signed artifacts to Maven Central
     runs-on: ubuntu-latest
     needs:
       - build-windows-native
-      - build-linux-native
-      - build-macos-native
+      - build-stub-native-jars
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -96,7 +77,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -104,7 +85,7 @@ jobs:
       - name: Download Windows native payload
         uses: actions/download-artifact@v4
         with:
-          name: windows-native-payload
+          name: release-windows-native-payload
           path: build/windows-native-payload
 
       - name: Publish all modules
