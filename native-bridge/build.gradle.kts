@@ -4,7 +4,44 @@ plugins {
     base
 }
 
+fun loadSimpleEnvFile(envFile: File): Map<String, String> {
+    if (!envFile.exists()) return emptyMap()
+
+    val keyRegex = Regex("^[A-Z_][A-Z0-9_]*$")
+    val result = linkedMapOf<String, String>()
+
+    envFile.forEachLine { rawLine ->
+        val line = rawLine.trim()
+        if (line.isEmpty() || line.startsWith("#")) return@forEachLine
+
+        val separator = line.indexOf('=')
+        if (separator <= 0) return@forEachLine
+
+        val key = line.substring(0, separator).trim()
+        if (!keyRegex.matches(key)) return@forEachLine
+
+        val valueRaw = line.substring(separator + 1).trim()
+
+        // Skip multiline quoted values (for example armored keys in publishing configs)
+        if ((valueRaw.startsWith('"') && !valueRaw.endsWith('"')) ||
+            (valueRaw.startsWith('\'') && !valueRaw.endsWith('\''))
+        ) {
+            return@forEachLine
+        }
+
+        val value = valueRaw.removeSurrounding("\"").removeSurrounding("'")
+        result[key] = value
+    }
+
+    return result
+}
+
 val cmakeBuildDir = layout.buildDirectory.dir("cmake")
+val dotenv = loadSimpleEnvFile(rootProject.file(".env"))
+
+fun envValue(name: String): String? =
+    System.getenv(name)?.takeIf { it.isNotBlank() }
+        ?: dotenv[name]?.takeIf { it.isNotBlank() }
 
 fun normalizeOs(name: String): String = when {
     name.startsWith("Windows", ignoreCase = true) -> "windows"
@@ -27,34 +64,34 @@ fun defaultVcpkgTriplet(targetOs: String, targetArch: String): String = when (ta
 }
 
 val targetOs = providers.gradleProperty("native.target.os")
-    .orElse(System.getenv("NATIVE_TARGET_OS") ?: normalizeOs(System.getProperty("os.name")))
+    .orElse(envValue("NATIVE_TARGET_OS") ?: normalizeOs(System.getProperty("os.name")))
     .get()
 val targetArch = providers.gradleProperty("native.target.arch")
-    .orElse(System.getenv("NATIVE_TARGET_ARCH") ?: normalizeArch(System.getProperty("os.arch")))
+    .orElse(envValue("NATIVE_TARGET_ARCH") ?: normalizeArch(System.getProperty("os.arch")))
     .get()
 
 val isWindows = targetOs == "windows"
 val defaultBuildType = if (isWindows) "Release" else "RelWithDebInfo"
 val buildType = providers.gradleProperty("native.buildType")
-    .orElse(System.getenv("NATIVE_BUILD_TYPE") ?: defaultBuildType)
+    .orElse(envValue("NATIVE_BUILD_TYPE") ?: defaultBuildType)
     .get()
 val nativeLibBasename = providers.gradleProperty("native.lib.basename")
-    .orElse(System.getenv("NATIVE_LIB_BASENAME") ?: "sqlcipher_jni")
+    .orElse(envValue("NATIVE_LIB_BASENAME") ?: "sqlcipher_jni")
     .get()
 
 val localVcpkgRoot = rootProject.layout.projectDirectory.dir("third_party/vcpkg").asFile
-val defaultWindowsVcpkgRoot = file("E:/Programs/Microsoft Visual Studio/vcpkg")
+val defaultWindowsVcpkgRoot = envValue("NATIVE_DEFAULT_WINDOWS_VCPKG_ROOT")?.let(::file)
 val gradleVcpkgRoot = providers.gradleProperty("native.vcpkgRoot").orNull?.let(::file)
-val envVcpkgRoot = System.getenv("VCPKG_ROOT")?.takeIf { it.isNotBlank() }?.let(::file)
+val envVcpkgRoot = envValue("VCPKG_ROOT")?.let(::file)
 val vcpkgRoot = when {
     gradleVcpkgRoot?.exists() == true -> gradleVcpkgRoot
     envVcpkgRoot?.exists() == true -> envVcpkgRoot
     localVcpkgRoot.exists() -> localVcpkgRoot
-    isWindows && defaultWindowsVcpkgRoot.exists() -> defaultWindowsVcpkgRoot
+    isWindows && defaultWindowsVcpkgRoot?.exists() == true -> defaultWindowsVcpkgRoot
     else -> null
 }
 val vcpkgTriplet = providers.gradleProperty("native.vcpkgTriplet")
-    .orElse(System.getenv("VCPKG_TARGET_TRIPLET") ?: defaultVcpkgTriplet(targetOs, targetArch))
+    .orElse(envValue("VCPKG_TARGET_TRIPLET") ?: defaultVcpkgTriplet(targetOs, targetArch))
     .get()
 
 val gradleToolchainFile = providers.gradleProperty("native.cmakeToolchainFile").orNull?.let(::file)
@@ -65,7 +102,7 @@ val vcpkgToolchainFile = when {
 }
 
 val opensslRootDir = providers.gradleProperty("native.opensslRoot")
-    .orElse(System.getenv("OPENSSL_ROOT_DIR") ?: "")
+    .orElse(envValue("OPENSSL_ROOT_DIR") ?: "")
     .orNull
     ?.takeIf { it.isNotBlank() }
 val inferredOpenSslRootDir = vcpkgRoot?.resolve("installed/$vcpkgTriplet")?.takeIf { it.exists() }?.absolutePath
