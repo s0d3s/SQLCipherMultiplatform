@@ -91,7 +91,7 @@ subprojects {
                 maven {
                     name = "sonatype"
                     val versionText = project.version.toString()
-                    val releaseUrl = "https://central.sonatype.com/repository/maven-releases/"
+                    val releaseUrl = "https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/"
                     val snapshotUrl = "https://central.sonatype.com/repository/maven-snapshots/"
                     url = uri(if (versionText.endsWith("SNAPSHOT")) snapshotUrl else releaseUrl)
 
