@@ -70,7 +70,7 @@ subprojects {
                     developers {
                         developer {
                             id.set(provider { project.findProperty("POM_DEVELOPER_ID")?.toString() ?: "s0d3s" })
-                            name.set(provider { project.findProperty("POM_DEVELOPER_NAME")?.toString() ?: "Sergio" })
+                            name.set(provider { project.findProperty("POM_DEVELOPER_NAME")?.toString() ?: "s0d3s" })
                             email.set(provider { project.findProperty("POM_DEVELOPER_EMAIL")?.toString() ?: "" })
                         }
                     }
@@ -91,6 +91,8 @@ subprojects {
                 maven {
                     name = "sonatype"
                     val versionText = project.version.toString()
+                    // Maven Central releases are deployed via Sonatype staging deploy API endpoint
+                    // when using Gradle maven-publish/signing flow.
                     val releaseUrl = "https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/"
                     val snapshotUrl = "https://central.sonatype.com/repository/maven-snapshots/"
                     url = uri(if (versionText.endsWith("SNAPSHOT")) snapshotUrl else releaseUrl)

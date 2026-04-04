@@ -48,11 +48,6 @@ tasks.register("verifyWindowsNativePayload") {
     dependsOn(tasks.named("jar"))
 
     doLast {
-        if (!isWindowsHost) {
-            logger.lifecycle("Skipping Windows native payload binary check on non-Windows host")
-            return@doLast
-        }
-
         val jarFile = tasks.named<Jar>("jar").get().archiveFile.get().asFile
         val hasJniDll = zipTree(jarFile).matching {
             include("META-INF/sqlcipher/native/windows-x64/sqlcipher_jni.dll")

@@ -271,7 +271,41 @@ Windows-first defaults are currently in place (Release output under `native-brid
 
 ---
 
-## 11) Suggested handoff checklist for next agent
+## 11) Maven Central release model (current)
+
+Publishing is now configured for two consumer-facing artifacts with transitive resolution:
+
+- `io.github.s0d3s.sqlcipher.multiplatform:jdbc-sqlcipher-jvm`
+  - Pure JDBC artifact.
+  - Publishes runtime dependencies on native artifacts:
+    - `sqlcipher-native-windows-x64`
+    - `sqlcipher-native-linux-x64`
+    - `sqlcipher-native-linux-arm64`
+    - `sqlcipher-native-macos-x64`
+    - `sqlcipher-native-macos-arm64`
+- `io.github.s0d3s.sqlcipher.multiplatform:kmp-api`
+  - KMP wrapper publication.
+  - JVM target depends transitively on `jdbc-sqlcipher-jvm`.
+  - Android target keeps Android SQLCipher dependencies.
+
+Release endpoint strategy:
+
+- Snapshot: `https://central.sonatype.com/repository/maven-snapshots/`
+- Release (latest Central portal path): `https://central.sonatype.com/repository/maven-releases/`
+
+Release workflow now builds native payloads for full matrix before publishing:
+
+- windows-x64
+- linux-x64
+- linux-arm64
+- macos-x64
+- macos-arm64
+
+Publish job downloads all payloads, verifies native packaging tasks, then runs one signed `publish` pass.
+
+---
+
+## 12) Suggested handoff checklist for next agent
 
 If continuing implementation, start by confirming:
 

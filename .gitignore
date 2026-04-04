@@ -9,3 +9,4 @@ gradle-*.zip
 gradle-*/
 .env
 .env.hide
+.local/

@@ -82,7 +82,10 @@ JVM call sites do not need manual driver bootstrap (`Class.forName(...)`); the S
   - `META-INF/sqlcipher/native/<platform>/manifest.properties`
 - Current platform support:
   - `windows-x64`: real native payload (JAR-embedded)
-  - `linux-x64`, `linux-arm64`, `macos-x64`, `macos-arm64`: stub manifests with explicit error message
+  - `linux-x64`: real native payload (JAR-embedded)
+  - `linux-arm64`: real native payload (JAR-embedded)
+  - `macos-x64`: real native payload (JAR-embedded)
+  - `macos-arm64`: real native payload (JAR-embedded)
 
 Note on “releasing” native libs: JVM does not provide safe in-process unloading for loaded native libraries. The runtime does best-effort cleanup of extracted temp files at process shutdown.
 
@@ -193,8 +196,23 @@ Required GitHub Secrets:
 
 OS-specific native build/publish strategy:
 
-- Native artifacts are built on OS-specific runners.
+- Native payloads are built in a release matrix for `windows-x64`, `linux-x64`, `linux-arm64`, `macos-x64`, `macos-arm64`.
 - Release workflow uses a single final publish job to avoid concurrent publication races for the same coordinates.
+
+Published artifacts contract:
+
+- `io.github.s0d3s.sqlcipher.multiplatform:jdbc-sqlcipher-jvm`
+  - Pure JDBC API artifact.
+  - Declares transitive runtime dependencies on all platform-native artifacts.
+- `io.github.s0d3s.sqlcipher.multiplatform:kmp-api`
+  - KMP wrapper publication.
+  - JVM variant resolves transitively to `jdbc-sqlcipher-jvm` (and therefore native artifacts).
+  - Android variant keeps Android SQLCipher dependencies.
+
+Release publishing endpoint strategy:
+
+- SNAPSHOTs: `https://central.sonatype.com/repository/maven-snapshots/`
+- Releases (latest Central Portal flow): `https://central.sonatype.com/repository/maven-releases/`
 
 ## Immediate next implementation slice
 
