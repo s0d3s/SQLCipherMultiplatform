@@ -1,7 +1,7 @@
 package io.github.s0d3s.sqlcipher.multiplatform.samplesqldelight
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
-import io.github.s0d3s.sqlcipher.multiplatform.jdbc.SqlCipherJdbcProperties
+import io.github.s0d3s.sqlcipher_multiplatform_jdbc.SqlCipherJdbcProperties
 import io.github.s0d3s.sqlcipher.multiplatform.samplesqldelight.db.SampleDatabase
 import java.io.File
 import java.sql.DriverManager

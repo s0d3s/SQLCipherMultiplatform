@@ -14,7 +14,7 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
-                implementation(project(":kmp-api"))
+                implementation(project(":sqlcipher-multiplatform"))
             }
         }
         val jvmMain by getting

@@ -21,7 +21,7 @@ kotlin {
 
         val jvmMain by getting {
             dependencies {
-                implementation(project(":jdbc-sqlcipher-jvm"))
+                implementation(project(":sqlcipher-multiplatform-jdbc-core"))
                 implementation("app.cash.sqldelight:sqlite-driver:2.0.2")
             }
         }
