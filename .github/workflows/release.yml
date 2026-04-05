@@ -14,9 +14,29 @@ env:
   RELEASE_ENABLE_MACOS_ARM64: "false"
 
 jobs:
+  resolve-release-targets:
+    name: Resolve enabled release targets
+    runs-on: ubuntu-latest
+    outputs:
+      enable_windows_x64: ${{ steps.flags.outputs.enable_windows_x64 }}
+      enable_linux_x64: ${{ steps.flags.outputs.enable_linux_x64 }}
+      enable_linux_arm64: ${{ steps.flags.outputs.enable_linux_arm64 }}
+      enable_macos_x64: ${{ steps.flags.outputs.enable_macos_x64 }}
+      enable_macos_arm64: ${{ steps.flags.outputs.enable_macos_arm64 }}
+    steps:
+      - name: Resolve target flags from workflow env
+        id: flags
+        run: |
+          echo "enable_windows_x64=${RELEASE_ENABLE_WINDOWS_X64}" >> "$GITHUB_OUTPUT"
+          echo "enable_linux_x64=${RELEASE_ENABLE_LINUX_X64}" >> "$GITHUB_OUTPUT"
+          echo "enable_linux_arm64=${RELEASE_ENABLE_LINUX_ARM64}" >> "$GITHUB_OUTPUT"
+          echo "enable_macos_x64=${RELEASE_ENABLE_MACOS_X64}" >> "$GITHUB_OUTPUT"
+          echo "enable_macos_arm64=${RELEASE_ENABLE_MACOS_ARM64}" >> "$GITHUB_OUTPUT"
+
   build-windows-native:
     name: Build Windows native artifact
-    if: ${{ env.RELEASE_ENABLE_WINDOWS_X64 != 'false' }}
+    needs: [resolve-release-targets]
+    if: ${{ needs.resolve-release-targets.outputs.enable_windows_x64 == 'true' }}
     uses: ./.github/workflows/_windows-native-build.yml
     with:
       native-build-type: Release
@@ -28,7 +48,8 @@ jobs:
 
   build-linux-x64-native:
     name: Build Linux native artifact (x64)
-    if: ${{ env.RELEASE_ENABLE_LINUX_X64 != 'false' }}
+    needs: [resolve-release-targets]
+    if: ${{ needs.resolve-release-targets.outputs.enable_linux_x64 == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -100,7 +121,8 @@ jobs:
 
   build-linux-arm64-native:
     name: Build Linux native artifact (arm64)
-    if: ${{ env.RELEASE_ENABLE_LINUX_ARM64 != 'false' }}
+    needs: [resolve-release-targets]
+    if: ${{ needs.resolve-release-targets.outputs.enable_linux_arm64 == 'true' }}
     runs-on: ubuntu-24.04-arm
 
     steps:
@@ -169,7 +191,8 @@ jobs:
 
   build-macos-x64-native:
     name: Build macOS native artifact (x64)
-    if: ${{ env.RELEASE_ENABLE_MACOS_X64 != 'false' }}
+    needs: [resolve-release-targets]
+    if: ${{ needs.resolve-release-targets.outputs.enable_macos_x64 == 'true' }}
     runs-on: macos-13
 
     steps:
@@ -238,7 +261,8 @@ jobs:
 
   build-macos-arm64-native:
     name: Build macOS native artifact (arm64)
-    if: ${{ env.RELEASE_ENABLE_MACOS_ARM64 != 'false' }}
+    needs: [resolve-release-targets]
+    if: ${{ needs.resolve-release-targets.outputs.enable_macos_arm64 == 'true' }}
     runs-on: macos-14
 
     steps:
@@ -308,19 +332,20 @@ jobs:
   bundle-native-payloads:
     name: Bundle native payloads for publish
     runs-on: ubuntu-latest
-    if: ${{ always() && (env.RELEASE_ENABLE_WINDOWS_X64 != 'false' || env.RELEASE_ENABLE_LINUX_X64 != 'false' || env.RELEASE_ENABLE_LINUX_ARM64 != 'false' || env.RELEASE_ENABLE_MACOS_X64 != 'false' || env.RELEASE_ENABLE_MACOS_ARM64 != 'false') }}
+    if: ${{ always() && (needs.build-windows-native.result == 'success' || needs.build-linux-x64-native.result == 'success' || needs.build-linux-arm64-native.result == 'success' || needs.build-macos-x64-native.result == 'success' || needs.build-macos-arm64-native.result == 'success') }}
     needs:
+      - resolve-release-targets
       - build-windows-native
       - build-linux-x64-native
       - build-linux-arm64-native
       - build-macos-x64-native
       - build-macos-arm64-native
     env:
-      ENABLE_WINDOWS_X64: ${{ env.RELEASE_ENABLE_WINDOWS_X64 != 'false' }}
-      ENABLE_LINUX_X64: ${{ env.RELEASE_ENABLE_LINUX_X64 != 'false' }}
-      ENABLE_LINUX_ARM64: ${{ env.RELEASE_ENABLE_LINUX_ARM64 != 'false' }}
-      ENABLE_MACOS_X64: ${{ env.RELEASE_ENABLE_MACOS_X64 != 'false' }}
-      ENABLE_MACOS_ARM64: ${{ env.RELEASE_ENABLE_MACOS_ARM64 != 'false' }}
+      ENABLE_WINDOWS_X64: ${{ needs.resolve-release-targets.outputs.enable_windows_x64 }}
+      ENABLE_LINUX_X64: ${{ needs.resolve-release-targets.outputs.enable_linux_x64 }}
+      ENABLE_LINUX_ARM64: ${{ needs.resolve-release-targets.outputs.enable_linux_arm64 }}
+      ENABLE_MACOS_X64: ${{ needs.resolve-release-targets.outputs.enable_macos_x64 }}
+      ENABLE_MACOS_ARM64: ${{ needs.resolve-release-targets.outputs.enable_macos_arm64 }}
     steps:
       - name: Download Windows native payload
         if: ${{ env.ENABLE_WINDOWS_X64 == 'true' }}
