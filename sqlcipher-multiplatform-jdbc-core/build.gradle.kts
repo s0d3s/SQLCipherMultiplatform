@@ -1,6 +1,8 @@
 plugins {
     kotlin("jvm")
     `java-library`
+    id("maven-publish")
+    id("signing")
 }
 
 import java.io.File

@@ -329,125 +329,11 @@ jobs:
           path: native-artifacts/sqlcipher-multiplatform-jdbc-macos-arm64/build/libs/*.jar
           if-no-files-found: error
 
-  bundle-native-payloads:
-    name: Bundle native payloads for publish
+  publish-jdbc-core:
+    name: Publish JDBC core
     runs-on: ubuntu-latest
-    if: ${{ always() }}
     needs:
       - resolve-release-targets
-      - build-windows-native
-      - build-linux-x64-native
-      - build-linux-arm64-native
-      - build-macos-x64-native
-      - build-macos-arm64-native
-    env:
-      ENABLE_WINDOWS_X64: ${{ needs.resolve-release-targets.outputs.enable_windows_x64 }}
-      ENABLE_LINUX_X64: ${{ needs.resolve-release-targets.outputs.enable_linux_x64 }}
-      ENABLE_LINUX_ARM64: ${{ needs.resolve-release-targets.outputs.enable_linux_arm64 }}
-      ENABLE_MACOS_X64: ${{ needs.resolve-release-targets.outputs.enable_macos_x64 }}
-      ENABLE_MACOS_ARM64: ${{ needs.resolve-release-targets.outputs.enable_macos_arm64 }}
-    steps:
-      - name: Download Windows native payload
-        if: ${{ env.ENABLE_WINDOWS_X64 == 'true' }}
-        uses: actions/download-artifact@v4
-        with:
-          name: release-windows-native-payload
-          path: build/native-payloads/windows-x64
-
-      - name: Download Linux x64 native payload
-        if: ${{ env.ENABLE_LINUX_X64 == 'true' }}
-        uses: actions/download-artifact@v4
-        with:
-          name: release-linux-x64-native-payload
-          path: build/native-payloads/linux-x64
-
-      - name: Download Linux arm64 native payload
-        if: ${{ env.ENABLE_LINUX_ARM64 == 'true' }}
-        uses: actions/download-artifact@v4
-        with:
-          name: release-linux-arm64-native-payload
-          path: build/native-payloads/linux-arm64
-
-      - name: Download macOS x64 native payload
-        if: ${{ env.ENABLE_MACOS_X64 == 'true' }}
-        uses: actions/download-artifact@v4
-        with:
-          name: release-macos-x64-native-payload
-          path: build/native-payloads/macos-x64
-
-      - name: Download macOS arm64 native payload
-        if: ${{ env.ENABLE_MACOS_ARM64 == 'true' }}
-        uses: actions/download-artifact@v4
-        with:
-          name: release-macos-arm64-native-payload
-          path: build/native-payloads/macos-arm64
-
-      - name: Generate bundle manifest
-        run: |
-          mkdir -p build/native-payloads
-          : > build/native-payloads/targets.txt
-
-          [[ "$ENABLE_WINDOWS_X64" == "true" ]] && echo "windows-x64" >> build/native-payloads/targets.txt
-          [[ "$ENABLE_LINUX_X64" == "true" ]] && echo "linux-x64" >> build/native-payloads/targets.txt
-          [[ "$ENABLE_LINUX_ARM64" == "true" ]] && echo "linux-arm64" >> build/native-payloads/targets.txt
-          [[ "$ENABLE_MACOS_X64" == "true" ]] && echo "macos-x64" >> build/native-payloads/targets.txt
-          [[ "$ENABLE_MACOS_ARM64" == "true" ]] && echo "macos-arm64" >> build/native-payloads/targets.txt
-
-          if [[ ! -s build/native-payloads/targets.txt ]]; then
-            echo "No native targets selected for release bundle" >&2
-            exit 1
-          fi
-
-      - name: Validate bundled payload layout
-        run: |
-          shopt -s nullglob
-
-          while IFS= read -r target; do
-            case "$target" in
-              windows-x64)
-                files=(build/native-payloads/windows-x64/*.dll)
-                ;;
-              linux-x64)
-                files=(build/native-payloads/linux-x64/*.so)
-                ;;
-              linux-arm64)
-                files=(build/native-payloads/linux-arm64/*.so)
-                ;;
-              macos-x64)
-                files=(build/native-payloads/macos-x64/*.dylib)
-                ;;
-              macos-arm64)
-                files=(build/native-payloads/macos-arm64/*.dylib)
-                ;;
-              *)
-                echo "Unknown target in bundle manifest: $target" >&2
-                exit 1
-                ;;
-            esac
-
-            if [[ ${#files[@]} -eq 0 ]]; then
-              echo "No native payload files found for target: $target" >&2
-              exit 1
-            fi
-          done < build/native-payloads/targets.txt
-
-      - name: Upload bundled native payloads
-        run: |
-          tar -czf build/release-native-payloads-bundle.tgz -C build native-payloads
-
-      - name: Upload bundled native payloads archive
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-native-payloads-bundle
-          path: build/release-native-payloads-bundle.tgz
-          if-no-files-found: error
-
-  publish:
-    name: Publish signed artifacts to Maven Central
-    runs-on: ubuntu-latest
-    needs:
-      - bundle-native-payloads
-    if: ${{ always() && needs.bundle-native-payloads.result == 'success' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -466,58 +352,7 @@ jobs:
       - name: Ensure Gradle wrapper is executable
         run: chmod +x ./gradlew
 
-      - name: Download bundled native payloads
-        uses: actions/download-artifact@v4
-        with:
-          name: release-native-payloads-bundle
-          path: build
-
-      - name: Extract bundled native payloads
-        run: |
-          tar -xzf build/release-native-payloads-bundle.tgz -C build
-
-      - name: Resolve publish targets
-        id: target_args
-        run: |
-          enabled_targets_csv=$(paste -sd, build/native-payloads/targets.txt)
-          echo "enabled_targets_csv=$enabled_targets_csv" >> "$GITHUB_OUTPUT"
-
-          payload_props=()
-
-          while IFS= read -r target; do
-            case "$target" in
-              windows-x64)
-                payload_props+=("-Pnative.windowsPayloadDir=build/native-payloads/windows-x64")
-                ;;
-              linux-x64)
-                payload_props+=("-Pnative.linuxX64PayloadDir=build/native-payloads/linux-x64")
-                ;;
-              linux-arm64)
-                payload_props+=("-Pnative.linuxArm64PayloadDir=build/native-payloads/linux-arm64")
-                ;;
-              macos-x64)
-                payload_props+=("-Pnative.macosX64PayloadDir=build/native-payloads/macos-x64")
-                ;;
-              macos-arm64)
-                payload_props+=("-Pnative.macosArm64PayloadDir=build/native-payloads/macos-arm64")
-                ;;
-            esac
-          done < build/native-payloads/targets.txt
-
-          echo "payload_props=${payload_props[*]}" >> "$GITHUB_OUTPUT"
-
-      - name: Verify native payload packaging
-        run: |
-          ./gradlew \
-            verifyNativeArtifactsGuardrails \
-            :sqlcipher-multiplatform:verifyPublishedNativeArtifacts \
-            -Pnative.enabledTargets=${{ steps.target_args.outputs.enabled_targets_csv }} \
-            -Psqlcipher.useLocalJdbcPlatforms=false \
-            -Psqlcipher.includeAllNativePlatforms=true \
-            ${{ steps.target_args.outputs.payload_props }} \
-            --stacktrace
-
-      - name: Publish all modules
+      - name: Publish jdbc core artifact
         env:
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
           SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
@@ -530,10 +365,320 @@ jobs:
             VERSION_ARG="-PreleaseVersion=${GITHUB_REF_NAME#v}"
           fi
 
-          ./gradlew publish \
+          ./gradlew :sqlcipher-multiplatform-jdbc-core:publish ${VERSION_ARG} --stacktrace
+
+  publish-native-windows-x64:
+    name: Publish native windows-x64
+    runs-on: ubuntu-latest
+    needs:
+      - resolve-release-targets
+      - build-windows-native
+      - publish-jdbc-core
+    if: ${{ needs.resolve-release-targets.outputs.enable_windows_x64 == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
+
+      - name: Download windows payload
+        uses: actions/download-artifact@v4
+        with:
+          name: release-windows-native-payload
+          path: build/native-payloads/windows-x64
+
+      - name: Validate windows payload
+        run: |
+          ls -la build/native-payloads/windows-x64
+          test -f build/native-payloads/windows-x64/sqlcipher_jni.dll
+
+      - name: Publish windows-x64 artifact
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+          SIGNING_KEY_ID: ${{ secrets.SIGNING_KEY_ID }}
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        run: |
+          VERSION_ARG=""
+          if [[ "${GITHUB_REF}" == refs/tags/v* || "${GITHUB_REF_NAME}" == v* ]]; then
+            VERSION_ARG="-PreleaseVersion=${GITHUB_REF_NAME#v}"
+          fi
+
+          ./gradlew \
+            :native-artifacts:sqlcipher-multiplatform-jdbc-windows-x64:verifyNativeArtifactGuardrails \
+            :native-artifacts:sqlcipher-multiplatform-jdbc-windows-x64:publish \
             ${VERSION_ARG} \
-            -Pnative.enabledTargets=${{ steps.target_args.outputs.enabled_targets_csv }} \
+            -Pnative.windowsPayloadDir=build/native-payloads/windows-x64 \
+            --stacktrace
+
+  publish-native-linux-x64:
+    name: Publish native linux-x64
+    runs-on: ubuntu-latest
+    needs:
+      - resolve-release-targets
+      - build-linux-x64-native
+      - publish-jdbc-core
+    if: ${{ needs.resolve-release-targets.outputs.enable_linux_x64 == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
+
+      - name: Download linux-x64 payload
+        uses: actions/download-artifact@v4
+        with:
+          name: release-linux-x64-native-payload
+          path: build/native-payloads/linux-x64
+
+      - name: Publish linux-x64 artifact
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+          SIGNING_KEY_ID: ${{ secrets.SIGNING_KEY_ID }}
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        run: |
+          VERSION_ARG=""
+          if [[ "${GITHUB_REF}" == refs/tags/v* || "${GITHUB_REF_NAME}" == v* ]]; then
+            VERSION_ARG="-PreleaseVersion=${GITHUB_REF_NAME#v}"
+          fi
+
+          ./gradlew \
+            :native-artifacts:sqlcipher-multiplatform-jdbc-linux-x64:verifyNativeArtifactGuardrails \
+            :native-artifacts:sqlcipher-multiplatform-jdbc-linux-x64:publish \
+            ${VERSION_ARG} \
+            -Pnative.linuxX64PayloadDir=build/native-payloads/linux-x64 \
+            --stacktrace
+
+  publish-native-linux-arm64:
+    name: Publish native linux-arm64
+    runs-on: ubuntu-latest
+    needs:
+      - resolve-release-targets
+      - build-linux-arm64-native
+      - publish-jdbc-core
+    if: ${{ needs.resolve-release-targets.outputs.enable_linux_arm64 == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
+
+      - name: Download linux-arm64 payload
+        uses: actions/download-artifact@v4
+        with:
+          name: release-linux-arm64-native-payload
+          path: build/native-payloads/linux-arm64
+
+      - name: Publish linux-arm64 artifact
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+          SIGNING_KEY_ID: ${{ secrets.SIGNING_KEY_ID }}
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        run: |
+          VERSION_ARG=""
+          if [[ "${GITHUB_REF}" == refs/tags/v* || "${GITHUB_REF_NAME}" == v* ]]; then
+            VERSION_ARG="-PreleaseVersion=${GITHUB_REF_NAME#v}"
+          fi
+
+          ./gradlew \
+            :native-artifacts:sqlcipher-multiplatform-jdbc-linux-arm64:verifyNativeArtifactGuardrails \
+            :native-artifacts:sqlcipher-multiplatform-jdbc-linux-arm64:publish \
+            ${VERSION_ARG} \
+            -Pnative.linuxArm64PayloadDir=build/native-payloads/linux-arm64 \
+            --stacktrace
+
+  publish-native-macos-x64:
+    name: Publish native macos-x64
+    runs-on: ubuntu-latest
+    needs:
+      - resolve-release-targets
+      - build-macos-x64-native
+      - publish-jdbc-core
+    if: ${{ needs.resolve-release-targets.outputs.enable_macos_x64 == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
+
+      - name: Download macos-x64 payload
+        uses: actions/download-artifact@v4
+        with:
+          name: release-macos-x64-native-payload
+          path: build/native-payloads/macos-x64
+
+      - name: Publish macos-x64 artifact
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+          SIGNING_KEY_ID: ${{ secrets.SIGNING_KEY_ID }}
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        run: |
+          VERSION_ARG=""
+          if [[ "${GITHUB_REF}" == refs/tags/v* || "${GITHUB_REF_NAME}" == v* ]]; then
+            VERSION_ARG="-PreleaseVersion=${GITHUB_REF_NAME#v}"
+          fi
+
+          ./gradlew \
+            :native-artifacts:sqlcipher-multiplatform-jdbc-macos-x64:verifyNativeArtifactGuardrails \
+            :native-artifacts:sqlcipher-multiplatform-jdbc-macos-x64:publish \
+            ${VERSION_ARG} \
+            -Pnative.macosX64PayloadDir=build/native-payloads/macos-x64 \
+            --stacktrace
+
+  publish-native-macos-arm64:
+    name: Publish native macos-arm64
+    runs-on: ubuntu-latest
+    needs:
+      - resolve-release-targets
+      - build-macos-arm64-native
+      - publish-jdbc-core
+    if: ${{ needs.resolve-release-targets.outputs.enable_macos_arm64 == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
+
+      - name: Download macos-arm64 payload
+        uses: actions/download-artifact@v4
+        with:
+          name: release-macos-arm64-native-payload
+          path: build/native-payloads/macos-arm64
+
+      - name: Publish macos-arm64 artifact
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+          SIGNING_KEY_ID: ${{ secrets.SIGNING_KEY_ID }}
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        run: |
+          VERSION_ARG=""
+          if [[ "${GITHUB_REF}" == refs/tags/v* || "${GITHUB_REF_NAME}" == v* ]]; then
+            VERSION_ARG="-PreleaseVersion=${GITHUB_REF_NAME#v}"
+          fi
+
+          ./gradlew \
+            :native-artifacts:sqlcipher-multiplatform-jdbc-macos-arm64:verifyNativeArtifactGuardrails \
+            :native-artifacts:sqlcipher-multiplatform-jdbc-macos-arm64:publish \
+            ${VERSION_ARG} \
+            -Pnative.macosArm64PayloadDir=build/native-payloads/macos-arm64 \
+            --stacktrace
+
+  publish-kmp-api:
+    name: Publish KMP API
+    runs-on: ubuntu-latest
+    needs:
+      - resolve-release-targets
+      - publish-jdbc-core
+      - publish-native-windows-x64
+      - publish-native-linux-x64
+      - publish-native-linux-arm64
+      - publish-native-macos-x64
+      - publish-native-macos-arm64
+    if: ${{ always() && needs.publish-jdbc-core.result == 'success' && (needs.resolve-release-targets.outputs.enable_windows_x64 != 'true' || needs.publish-native-windows-x64.result == 'success') && (needs.resolve-release-targets.outputs.enable_linux_x64 != 'true' || needs.publish-native-linux-x64.result == 'success') && (needs.resolve-release-targets.outputs.enable_linux_arm64 != 'true' || needs.publish-native-linux-arm64.result == 'success') && (needs.resolve-release-targets.outputs.enable_macos_x64 != 'true' || needs.publish-native-macos-x64.result == 'success') && (needs.resolve-release-targets.outputs.enable_macos_arm64 != 'true' || needs.publish-native-macos-arm64.result == 'success') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
+
+      - name: Publish KMP API artifact
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+          SIGNING_KEY_ID: ${{ secrets.SIGNING_KEY_ID }}
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        run: |
+          VERSION_ARG=""
+          if [[ "${GITHUB_REF}" == refs/tags/v* || "${GITHUB_REF_NAME}" == v* ]]; then
+            VERSION_ARG="-PreleaseVersion=${GITHUB_REF_NAME#v}"
+          fi
+
+          ./gradlew \
+            :sqlcipher-multiplatform:verifyPublishedNativeArtifacts \
+            :sqlcipher-multiplatform:publish \
+            ${VERSION_ARG} \
             -Psqlcipher.useLocalJdbcPlatforms=false \
             -Psqlcipher.includeAllNativePlatforms=true \
-            ${{ steps.target_args.outputs.payload_props }} \
             --stacktrace
