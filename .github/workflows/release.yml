@@ -6,10 +6,17 @@ on:
     tags:
       - 'v*'
 
+env:
+  RELEASE_ENABLE_WINDOWS_X64: "true"
+  RELEASE_ENABLE_LINUX_X64: "false"
+  RELEASE_ENABLE_LINUX_ARM64: "false"
+  RELEASE_ENABLE_MACOS_X64: "false"
+  RELEASE_ENABLE_MACOS_ARM64: "false"
+
 jobs:
   build-windows-native:
     name: Build Windows native artifact
-    if: ${{ vars.RELEASE_ENABLE_WINDOWS_X64 != 'false' }}
+    if: ${{ env.RELEASE_ENABLE_WINDOWS_X64 != 'false' }}
     uses: ./.github/workflows/_windows-native-build.yml
     with:
       native-build-type: Release
@@ -21,7 +28,7 @@ jobs:
 
   build-linux-x64-native:
     name: Build Linux native artifact (x64)
-    if: ${{ vars.RELEASE_ENABLE_LINUX_X64 != 'false' }}
+    if: ${{ env.RELEASE_ENABLE_LINUX_X64 != 'false' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -70,6 +77,13 @@ jobs:
           -Pnative.linuxX64PayloadDir=native-bridge/build/cmake/out
           --stacktrace
 
+      - name: Verify Linux x64 native artifact guardrails
+        run: >-
+          ./gradlew
+          :native-artifacts:sqlcipher-multiplatform-jdbc-linux-x64:verifyNativeArtifactGuardrails
+          -Pnative.linuxX64PayloadDir=native-bridge/build/cmake/out
+          --stacktrace
+
       - name: Upload Linux native payload
         uses: actions/upload-artifact@v4
         with:
@@ -86,7 +100,7 @@ jobs:
 
   build-linux-arm64-native:
     name: Build Linux native artifact (arm64)
-    if: ${{ vars.RELEASE_ENABLE_LINUX_ARM64 != 'false' }}
+    if: ${{ env.RELEASE_ENABLE_LINUX_ARM64 != 'false' }}
     runs-on: ubuntu-24.04-arm
 
     steps:
@@ -132,6 +146,13 @@ jobs:
           -Pnative.linuxArm64PayloadDir=native-bridge/build/cmake/out
           --stacktrace
 
+      - name: Verify Linux arm64 native artifact guardrails
+        run: >-
+          ./gradlew
+          :native-artifacts:sqlcipher-multiplatform-jdbc-linux-arm64:verifyNativeArtifactGuardrails
+          -Pnative.linuxArm64PayloadDir=native-bridge/build/cmake/out
+          --stacktrace
+
       - name: Upload Linux arm64 native payload
         uses: actions/upload-artifact@v4
         with:
@@ -148,7 +169,7 @@ jobs:
 
   build-macos-x64-native:
     name: Build macOS native artifact (x64)
-    if: ${{ vars.RELEASE_ENABLE_MACOS_X64 != 'false' }}
+    if: ${{ env.RELEASE_ENABLE_MACOS_X64 != 'false' }}
     runs-on: macos-13
 
     steps:
@@ -194,6 +215,13 @@ jobs:
           -Pnative.macosX64PayloadDir=native-bridge/build/cmake/out
           --stacktrace
 
+      - name: Verify macOS x64 native artifact guardrails
+        run: >-
+          ./gradlew
+          :native-artifacts:sqlcipher-multiplatform-jdbc-macos-x64:verifyNativeArtifactGuardrails
+          -Pnative.macosX64PayloadDir=native-bridge/build/cmake/out
+          --stacktrace
+
       - name: Upload macOS x64 native payload
         uses: actions/upload-artifact@v4
         with:
@@ -210,7 +238,7 @@ jobs:
 
   build-macos-arm64-native:
     name: Build macOS native artifact (arm64)
-    if: ${{ vars.RELEASE_ENABLE_MACOS_ARM64 != 'false' }}
+    if: ${{ env.RELEASE_ENABLE_MACOS_ARM64 != 'false' }}
     runs-on: macos-14
 
     steps:
@@ -256,6 +284,13 @@ jobs:
           -Pnative.macosArm64PayloadDir=native-bridge/build/cmake/out
           --stacktrace
 
+      - name: Verify macOS arm64 native artifact guardrails
+        run: >-
+          ./gradlew
+          :native-artifacts:sqlcipher-multiplatform-jdbc-macos-arm64:verifyNativeArtifactGuardrails
+          -Pnative.macosArm64PayloadDir=native-bridge/build/cmake/out
+          --stacktrace
+
       - name: Upload macOS arm64 native payload
         uses: actions/upload-artifact@v4
         with:
@@ -273,7 +308,7 @@ jobs:
   bundle-native-payloads:
     name: Bundle native payloads for publish
     runs-on: ubuntu-latest
-    if: ${{ always() && (vars.RELEASE_ENABLE_WINDOWS_X64 != 'false' || vars.RELEASE_ENABLE_LINUX_X64 != 'false' || vars.RELEASE_ENABLE_LINUX_ARM64 != 'false' || vars.RELEASE_ENABLE_MACOS_X64 != 'false' || vars.RELEASE_ENABLE_MACOS_ARM64 != 'false') }}
+    if: ${{ always() && (env.RELEASE_ENABLE_WINDOWS_X64 != 'false' || env.RELEASE_ENABLE_LINUX_X64 != 'false' || env.RELEASE_ENABLE_LINUX_ARM64 != 'false' || env.RELEASE_ENABLE_MACOS_X64 != 'false' || env.RELEASE_ENABLE_MACOS_ARM64 != 'false') }}
     needs:
       - build-windows-native
       - build-linux-x64-native
@@ -281,11 +316,11 @@ jobs:
       - build-macos-x64-native
       - build-macos-arm64-native
     env:
-      ENABLE_WINDOWS_X64: ${{ vars.RELEASE_ENABLE_WINDOWS_X64 != 'false' }}
-      ENABLE_LINUX_X64: ${{ vars.RELEASE_ENABLE_LINUX_X64 != 'false' }}
-      ENABLE_LINUX_ARM64: ${{ vars.RELEASE_ENABLE_LINUX_ARM64 != 'false' }}
-      ENABLE_MACOS_X64: ${{ vars.RELEASE_ENABLE_MACOS_X64 != 'false' }}
-      ENABLE_MACOS_ARM64: ${{ vars.RELEASE_ENABLE_MACOS_ARM64 != 'false' }}
+      ENABLE_WINDOWS_X64: ${{ env.RELEASE_ENABLE_WINDOWS_X64 != 'false' }}
+      ENABLE_LINUX_X64: ${{ env.RELEASE_ENABLE_LINUX_X64 != 'false' }}
+      ENABLE_LINUX_ARM64: ${{ env.RELEASE_ENABLE_LINUX_ARM64 != 'false' }}
+      ENABLE_MACOS_X64: ${{ env.RELEASE_ENABLE_MACOS_X64 != 'false' }}
+      ENABLE_MACOS_ARM64: ${{ env.RELEASE_ENABLE_MACOS_ARM64 != 'false' }}
     steps:
       - name: Download Windows native payload
         if: ${{ env.ENABLE_WINDOWS_X64 == 'true' }}
@@ -421,41 +456,38 @@ jobs:
           enabled_targets_csv=$(paste -sd, build/native-payloads/targets.txt)
           echo "enabled_targets_csv=$enabled_targets_csv" >> "$GITHUB_OUTPUT"
 
-          verify_tasks=()
           payload_props=()
 
           while IFS= read -r target; do
             case "$target" in
               windows-x64)
-                verify_tasks+=(":native-artifacts:sqlcipher-multiplatform-jdbc-windows-x64:verifyWindowsNativePayload")
                 payload_props+=("-Pnative.windowsPayloadDir=build/native-payloads/windows-x64")
                 ;;
               linux-x64)
-                verify_tasks+=(":native-artifacts:sqlcipher-multiplatform-jdbc-linux-x64:verifyLinuxX64NativePayload")
                 payload_props+=("-Pnative.linuxX64PayloadDir=build/native-payloads/linux-x64")
                 ;;
               linux-arm64)
-                verify_tasks+=(":native-artifacts:sqlcipher-multiplatform-jdbc-linux-arm64:verifyLinuxArm64NativePayload")
                 payload_props+=("-Pnative.linuxArm64PayloadDir=build/native-payloads/linux-arm64")
                 ;;
               macos-x64)
-                verify_tasks+=(":native-artifacts:sqlcipher-multiplatform-jdbc-macos-x64:verifyMacosX64NativePayload")
                 payload_props+=("-Pnative.macosX64PayloadDir=build/native-payloads/macos-x64")
                 ;;
               macos-arm64)
-                verify_tasks+=(":native-artifacts:sqlcipher-multiplatform-jdbc-macos-arm64:verifyMacosArm64NativePayload")
                 payload_props+=("-Pnative.macosArm64PayloadDir=build/native-payloads/macos-arm64")
                 ;;
             esac
           done < build/native-payloads/targets.txt
 
-          echo "verify_tasks=${verify_tasks[*]}" >> "$GITHUB_OUTPUT"
           echo "payload_props=${payload_props[*]}" >> "$GITHUB_OUTPUT"
 
       - name: Verify native payload packaging
         run: |
           ./gradlew \
-            ${{ steps.target_args.outputs.verify_tasks }} \
+            verifyNativeArtifactsGuardrails \
+            :sqlcipher-multiplatform:verifyPublishedNativeArtifacts \
+            -Pnative.enabledTargets=${{ steps.target_args.outputs.enabled_targets_csv }} \
+            -Psqlcipher.useLocalJdbcPlatforms=false \
+            -Psqlcipher.includeAllNativePlatforms=true \
             ${{ steps.target_args.outputs.payload_props }} \
             --stacktrace
 
@@ -475,5 +507,7 @@ jobs:
           ./gradlew publish \
             ${VERSION_ARG} \
             -Pnative.enabledTargets=${{ steps.target_args.outputs.enabled_targets_csv }} \
+            -Psqlcipher.useLocalJdbcPlatforms=false \
+            -Psqlcipher.includeAllNativePlatforms=true \
             ${{ steps.target_args.outputs.payload_props }} \
             --stacktrace

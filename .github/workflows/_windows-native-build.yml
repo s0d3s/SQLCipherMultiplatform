@@ -14,7 +14,7 @@ name: _windows-native-build
         type: boolean
         default: false
       run-native-smoke-test:
-        description: Run sqlcipher-multiplatform-jdbc-core native smoke test
+        description: Run native artifact guardrails (payload verification + shared jdbc-core integration tests)
         required: false
         type: boolean
         default: false
@@ -81,13 +81,23 @@ jobs:
         if: ${{ inputs.run-verify-samples }}
         run: ./gradlew verifySamples "-Pnative.buildType=${{ inputs.native-build-type }}" --stacktrace --info
 
-      - name: Run native smoke test
+      - name: Run native artifact guardrails
         if: ${{ inputs.run-native-smoke-test }}
-        run: ./gradlew :sqlcipher-multiplatform-jdbc-core:nativeSmokeTest "-Pnative.buildType=${{ inputs.native-build-type }}" --stacktrace
+        run: >-
+          ./gradlew
+          :native-artifacts:sqlcipher-multiplatform-jdbc-windows-x64:verifyNativeArtifactGuardrails
+          "-Pnative.windowsPayloadDir=native-bridge/build/cmake/out/${{ inputs.native-build-type }}"
+          "-Pnative.buildType=${{ inputs.native-build-type }}"
+          --stacktrace
 
       - name: Publish dry-run to Maven local
         if: ${{ inputs.run-publish-to-maven-local }}
-        run: ./gradlew publishToMavenLocal --stacktrace
+        run: >-
+          ./gradlew
+          publishToMavenLocal
+          -Psqlcipher.useLocalJdbcPlatforms=false
+          -Psqlcipher.includeAllNativePlatforms=true
+          --stacktrace
 
       - name: Upload Windows native payload
         if: ${{ inputs.upload-artifacts }}

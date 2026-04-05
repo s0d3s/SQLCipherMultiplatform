@@ -141,6 +141,24 @@ subprojects {
 val isWindowsHost = System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
 val sqlcipherRef = providers.gradleProperty("sqlcipher.ref").orNull
 
+fun detectHostNativeTargetId(): String? {
+    val osName = System.getProperty("os.name").lowercase()
+    val arch = when (System.getProperty("os.arch").lowercase()) {
+        "x86_64", "amd64" -> "x64"
+        "aarch64", "arm64" -> "arm64"
+        else -> return null
+    }
+
+    return when {
+        osName.startsWith("windows") && arch == "x64" -> "windows-x64"
+        osName.startsWith("linux") && arch == "x64" -> "linux-x64"
+        osName.startsWith("linux") && arch == "arm64" -> "linux-arm64"
+        osName.startsWith("mac") && arch == "x64" -> "macos-x64"
+        osName.startsWith("mac") && arch == "arm64" -> "macos-arm64"
+        else -> null
+    }
+}
+
 tasks.register<Exec>("initSqlcipherSubmodule") {
     group = "sqlcipher"
     description = "Initializes SQLCipher upstream git submodule"
@@ -191,4 +209,104 @@ tasks.register("verifySamples") {
         ":samples:kmp-basic-app:verifySample",
         ":samples:kmp-sqldelight-app:verifySample"
     )
+}
+
+data class NativeArtifactGuardrailSpec(
+    val targetId: String,
+    val modulePath: String,
+    val payloadVerificationTask: String,
+    val jdbcCoreIntegrationTask: String,
+)
+
+val nativeArtifactGuardrailSpecs = listOf(
+    NativeArtifactGuardrailSpec(
+        targetId = "windows-x64",
+        modulePath = ":native-artifacts:sqlcipher-multiplatform-jdbc-windows-x64",
+        payloadVerificationTask = "verifyWindowsNativePayload",
+        jdbcCoreIntegrationTask = "testIntegrationWindowsX64",
+    ),
+    NativeArtifactGuardrailSpec(
+        targetId = "linux-x64",
+        modulePath = ":native-artifacts:sqlcipher-multiplatform-jdbc-linux-x64",
+        payloadVerificationTask = "verifyLinuxX64NativePayload",
+        jdbcCoreIntegrationTask = "testIntegrationLinuxX64",
+    ),
+    NativeArtifactGuardrailSpec(
+        targetId = "linux-arm64",
+        modulePath = ":native-artifacts:sqlcipher-multiplatform-jdbc-linux-arm64",
+        payloadVerificationTask = "verifyLinuxArm64NativePayload",
+        jdbcCoreIntegrationTask = "testIntegrationLinuxArm64",
+    ),
+    NativeArtifactGuardrailSpec(
+        targetId = "macos-x64",
+        modulePath = ":native-artifacts:sqlcipher-multiplatform-jdbc-macos-x64",
+        payloadVerificationTask = "verifyMacosX64NativePayload",
+        jdbcCoreIntegrationTask = "testIntegrationMacosX64",
+    ),
+    NativeArtifactGuardrailSpec(
+        targetId = "macos-arm64",
+        modulePath = ":native-artifacts:sqlcipher-multiplatform-jdbc-macos-arm64",
+        payloadVerificationTask = "verifyMacosArm64NativePayload",
+        jdbcCoreIntegrationTask = "testIntegrationMacosArm64",
+    )
+)
+
+nativeArtifactGuardrailSpecs.forEach { spec ->
+    val payloadTaskPath = "${spec.modulePath}:${spec.payloadVerificationTask}"
+    val integrationTaskPath = ":sqlcipher-multiplatform-jdbc-core:${spec.jdbcCoreIntegrationTask}"
+
+    project(spec.modulePath) {
+        gradle.projectsEvaluated {
+            rootProject.tasks.findByPath(integrationTaskPath)?.mustRunAfter(payloadTaskPath)
+        }
+
+        tasks.register("verifyNativeArtifactGuardrails") {
+            group = "verification"
+            description = "Verifies native payload packaging and runs shared JDBC integration tests for ${spec.targetId}."
+            dependsOn(
+                payloadTaskPath,
+                integrationTaskPath
+            )
+
+            doLast {
+                logger.lifecycle("[PASS] Native artifact guardrails completed for ${spec.targetId}")
+            }
+        }
+    }
+}
+
+tasks.register("verifyNativeArtifactsGuardrails") {
+    group = "verification"
+    description = "Runs guardrail verification for enabled native artifact targets."
+
+    val enabledTargets = providers.gradleProperty("native.enabledTargets")
+        .orNull
+        ?.split(',')
+        ?.map { it.trim() }
+        ?.filter { it.isNotBlank() }
+        ?.toSet()
+
+    val hostTargetId = detectHostNativeTargetId()
+
+    val selectedSpecs = if (enabledTargets.isNullOrEmpty()) {
+        if (hostTargetId == null) {
+            emptyList()
+        } else {
+            nativeArtifactGuardrailSpecs.filter { it.targetId == hostTargetId }
+        }
+    } else {
+        nativeArtifactGuardrailSpecs.filter { it.targetId in enabledTargets }
+    }
+
+    check(selectedSpecs.isNotEmpty()) {
+        "No native targets selected for verifyNativeArtifactsGuardrails. Provide -Pnative.enabledTargets=... or run on a supported host target."
+    }
+
+    selectedSpecs.forEach { spec ->
+        dependsOn("${spec.modulePath}:verifyNativeArtifactGuardrails")
+    }
+
+    doLast {
+        logger.lifecycle("[PASS] Native artifact guardrails aggregate completed for targets: ${selectedSpecs.joinToString { it.targetId }}")
+    }
 }

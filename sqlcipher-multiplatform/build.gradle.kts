@@ -1,5 +1,6 @@
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.tasks.testing.Test
 
 plugins {
     kotlin("multiplatform")
@@ -8,7 +9,7 @@ plugins {
     id("signing")
 }
 
-fun currentDesktopClassifier(): Pair<String, String> {
+fun currentDesktopPlatform(): String {
     val osName = System.getProperty("os.name")
         ?.lowercase()
         ?: error("Missing os.name system property")
@@ -18,7 +19,7 @@ fun currentDesktopClassifier(): Pair<String, String> {
         else -> error("Unsupported architecture: ${System.getProperty("os.arch")}")
     }
 
-    val platform = when {
+    return when {
         osName.contains("windows") && arch == "x64" -> "windows-x64"
         osName.contains("linux") && arch == "x64" -> "linux-x64"
         osName.contains("linux") && arch == "arm64" -> "linux-arm64"
@@ -26,16 +27,104 @@ fun currentDesktopClassifier(): Pair<String, String> {
         osName.contains("mac") && arch == "arm64" -> "macos-arm64"
         else -> error("Unsupported OS/arch: $osName / $arch")
     }
-
-    return platform to arch
 }
 
 val useLocalJdbcPlatforms = providers.gradleProperty("sqlcipher.useLocalJdbcPlatforms")
-    .orElse("false")
+    .orElse(System.getenv("SQLCIPHER_USE_LOCAL_JDBC_PLATFORMS") ?: "true")
+    .map { it.equals("true", ignoreCase = true) }
+    .get()
+
+val includeAllNativePlatforms = providers.gradleProperty("sqlcipher.includeAllNativePlatforms")
+    .orElse(
+        System.getenv("SQLCIPHER_INCLUDE_ALL_NATIVE_PLATFORMS")
+            ?: if (useLocalJdbcPlatforms) "false" else "true"
+    )
     .map { it.equals("true", ignoreCase = true) }
     .get()
 
 val projectVersion = rootProject.version.toString()
+val currentPlatform = currentDesktopPlatform()
+val currentLocalJdbcModulePath = ":native-artifacts:sqlcipher-multiplatform-jdbc-$currentPlatform"
+val allNativePlatforms = listOf(
+    "windows-x64",
+    "linux-x64",
+    "linux-arm64",
+    "macos-x64",
+    "macos-arm64"
+)
+
+val selectedNativePlatforms = if (includeAllNativePlatforms) allNativePlatforms else listOf(currentPlatform)
+val selectedLocalNativeModulePaths = selectedNativePlatforms.map { ":native-artifacts:sqlcipher-multiplatform-jdbc-$it" }
+val selectedRemoteNativeCoordinates = selectedNativePlatforms.map {
+    "io.github.s0d3s:sqlcipher-multiplatform-jdbc-$it:$projectVersion"
+}
+
+tasks.register("verifySingleLocalJdbcArtifact") {
+    group = "verification"
+    description = "Ensures local JVM runtime dependency set matches selected SQLCipher native platforms."
+
+    doLast {
+        if (!useLocalJdbcPlatforms) {
+            logger.lifecycle("[INFO] verifySingleLocalJdbcArtifact: local JDBC mode disabled; skipping local-artifact guardrail")
+            return@doLast
+        }
+
+        val jvmMainSourceSet = kotlin.sourceSets.getByName("jvmMain")
+        val runtimeOnlyConfigurationName = jvmMainSourceSet.runtimeOnlyConfigurationName
+        val runtimeOnlyConfiguration = configurations.getByName(runtimeOnlyConfigurationName)
+
+        val localJdbcDependencies = runtimeOnlyConfiguration.dependencies
+            .filterIsInstance<org.gradle.api.artifacts.ProjectDependency>()
+            .map { it.dependencyProject.path }
+            .filter { it.startsWith(":native-artifacts:sqlcipher-multiplatform-jdbc-") }
+            .sorted()
+
+        val expected = selectedLocalNativeModulePaths.sorted()
+
+        check(localJdbcDependencies == expected) {
+            "Expected local JDBC runtimeOnly dependency set $expected, but found $localJdbcDependencies"
+        }
+
+        logger.lifecycle("[PASS] verifySingleLocalJdbcArtifact: using local JDBC artifacts ${localJdbcDependencies.joinToString()}")
+    }
+}
+
+tasks.register("verifyPublishedNativeArtifacts") {
+    group = "verification"
+    description = "Ensures published JVM runtime dependency set contains the expected SQLCipher native artifact coordinates."
+
+    doLast {
+        if (useLocalJdbcPlatforms) {
+            throw GradleException(
+                "Publishing is configured with local JDBC platform dependencies. " +
+                    "Set -Psqlcipher.useLocalJdbcPlatforms=false for production publication."
+            )
+        }
+
+        val jvmMainSourceSet = kotlin.sourceSets.getByName("jvmMain")
+        val runtimeOnlyConfigurationName = jvmMainSourceSet.runtimeOnlyConfigurationName
+        val runtimeOnlyConfiguration = configurations.getByName(runtimeOnlyConfigurationName)
+
+        val declaredRemoteNativeDependencies = runtimeOnlyConfiguration.dependencies
+            .filterIsInstance<org.gradle.api.artifacts.ExternalModuleDependency>()
+            .mapNotNull { dep ->
+                val group = dep.group ?: return@mapNotNull null
+                val name = dep.name
+                val version = dep.version ?: return@mapNotNull null
+                "$group:$name:$version"
+            }
+            .filter { it.startsWith("io.github.s0d3s:sqlcipher-multiplatform-jdbc-") }
+            .sorted()
+
+        val expected = selectedRemoteNativeCoordinates.sorted()
+
+        check(declaredRemoteNativeDependencies == expected) {
+            "Expected published JVM runtimeOnly native coordinates $expected, but found $declaredRemoteNativeDependencies"
+        }
+
+        logger.lifecycle("[PASS] verifyPublishedNativeArtifacts: using published native artifacts ${declaredRemoteNativeDependencies.joinToString()}")
+    }
+}
 
 kotlin {
     jvm {
@@ -56,16 +145,31 @@ kotlin {
 
     sourceSets {
         val commonMain by getting
+        val commonTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+            }
+        }
 
         val jvmMain by getting {
             dependencies {
-                val (platform, _) = currentDesktopClassifier()
-
                 if (useLocalJdbcPlatforms) {
-                    runtimeOnly(project(":native-artifacts:sqlcipher-multiplatform-jdbc-$platform"))
+                    implementation(project(":sqlcipher-multiplatform-jdbc-core"))
+                    selectedLocalNativeModulePaths.forEach { modulePath ->
+                        runtimeOnly(project(modulePath))
+                    }
                 } else {
-                    runtimeOnly("io.github.s0d3s:sqlcipher-multiplatform-jdbc-$platform:$projectVersion")
+                    implementation("io.github.s0d3s:sqlcipher-multiplatform-jdbc-core:$projectVersion")
+                    selectedRemoteNativeCoordinates.forEach { coordinate ->
+                        runtimeOnly(coordinate)
+                    }
                 }
+            }
+        }
+
+        val jvmTest by getting {
+            dependencies {
+                implementation(kotlin("test-junit5"))
             }
         }
 
@@ -76,6 +180,33 @@ kotlin {
             }
         }
     }
+}
+
+tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
+
+    val nativePath = System.getProperty("sqlcipher.native.path")
+    if (!nativePath.isNullOrBlank()) {
+        systemProperty("sqlcipher.native.path", nativePath)
+    }
+
+    val nativeLibBasename = System.getProperty("sqlcipher.native.lib.basename")
+    if (!nativeLibBasename.isNullOrBlank()) {
+        systemProperty("sqlcipher.native.lib.basename", nativeLibBasename)
+    }
+
+    val integrationEnabled = System.getProperty("sqlcipher.integration.enabled")
+    if (!integrationEnabled.isNullOrBlank()) {
+        systemProperty("sqlcipher.integration.enabled", integrationEnabled)
+    }
+}
+
+tasks.matching { it.name == "compileKotlinJvm" || it.name == "jvmProcessResources" }.configureEach {
+    dependsOn("verifySingleLocalJdbcArtifact")
+}
+
+tasks.matching { it.name.startsWith("publish", ignoreCase = true) }.configureEach {
+    dependsOn("verifyPublishedNativeArtifacts")
 }
 
 extensions.configure<PublishingExtension>("publishing") {
