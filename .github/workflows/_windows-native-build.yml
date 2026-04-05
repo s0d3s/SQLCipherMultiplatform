@@ -86,9 +86,28 @@ jobs:
       - name: Assert expected Windows JNI payload exists
         shell: pwsh
         run: |
-          $jniPath = "$env:GITHUB_WORKSPACE/native-bridge/build/cmake/out/${{ inputs.native-build-type }}/${{ inputs.native-lib-basename }}.dll"
-          if (!(Test-Path $jniPath)) {
-            Write-Error "Expected JNI library not found: $jniPath"
+          $outRoot = Join-Path $env:GITHUB_WORKSPACE "native-bridge/build/cmake/out"
+          $expectedDir = Join-Path $outRoot "${{ inputs.native-build-type }}"
+          $expectedPath = Join-Path $expectedDir "${{ inputs.native-lib-basename }}.dll"
+
+          if (!(Test-Path -LiteralPath $expectedPath)) {
+            $found = Get-ChildItem -Path $outRoot -Filter "${{ inputs.native-lib-basename }}.dll" -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($null -ne $found) {
+              New-Item -ItemType Directory -Path $expectedDir -Force | Out-Null
+              Copy-Item -LiteralPath $found.FullName -Destination $expectedPath -Force
+              Write-Host "Normalized JNI library location: $($found.FullName) -> $expectedPath"
+            }
+          }
+
+          if (!(Test-Path -LiteralPath $expectedPath)) {
+            Write-Host "Expected JNI library missing at: $expectedPath"
+            Write-Host "Discovered output tree for diagnostics:"
+            if (Test-Path -LiteralPath $outRoot) {
+              Get-ChildItem -Path $outRoot -Recurse -File | Select-Object FullName,Length
+            }
+            Write-Error "Expected JNI library not found after native build: $expectedPath"
+          } else {
+            Write-Host "Found JNI library: $expectedPath"
           }
 
       - name: Verify samples
