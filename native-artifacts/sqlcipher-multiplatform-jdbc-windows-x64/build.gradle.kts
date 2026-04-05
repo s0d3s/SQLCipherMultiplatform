@@ -20,6 +20,10 @@ extensions.configure<org.gradle.api.publish.PublishingExtension>("publishing") {
 val isWindowsHost = System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
 val nativeBuildType = providers.gradleProperty("native.buildType")
     .orElse(System.getenv("NATIVE_BUILD_TYPE") ?: if (isWindowsHost) "Release" else "RelWithDebInfo")
+val nativeLibBasename = providers.gradleProperty("native.lib.basename")
+    .orElse(System.getenv("NATIVE_LIB_BASENAME") ?: "sqlcipher_jni")
+    .get()
+val expectedWindowsJniDllName = "$nativeLibBasename.dll"
 val externalWindowsPayloadDir = providers.gradleProperty("native.windowsPayloadDir").orNull?.let(::file)
 
 val nativeOutDir = if (isWindowsHost) {
@@ -63,11 +67,11 @@ tasks.register("verifyWindowsNativePayload") {
     doLast {
         val jarFile = tasks.named<Jar>("jar").get().archiveFile.get().asFile
         val hasJniDll = zipTree(jarFile).matching {
-            include("META-INF/sqlcipher/native/windows-x64/sqlcipher_jni.dll")
+            include("META-INF/sqlcipher/native/windows-x64/$expectedWindowsJniDllName")
         }.files.isNotEmpty()
 
         check(hasJniDll) {
-            "Windows native artifact does not contain sqlcipher_jni.dll. Ensure :native-bridge:buildNative succeeded."
+            "Windows native artifact does not contain $expectedWindowsJniDllName. Ensure :native-bridge:buildNative succeeded and native.lib.basename is consistent."
         }
     }
 }

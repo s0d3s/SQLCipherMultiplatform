@@ -8,6 +8,11 @@ name: _windows-native-build
         required: false
         type: string
         default: Release
+      native-lib-basename:
+        description: Native JNI library basename (without platform prefix/suffix)
+        required: false
+        type: string
+        default: sqlcipher_jni
       run-verify-samples:
         description: Run verifySamples task
         required: false
@@ -75,7 +80,16 @@ jobs:
           :native-artifacts:sqlcipher-multiplatform-jdbc-windows-x64:processResources
           :native-artifacts:sqlcipher-multiplatform-jdbc-windows-x64:jar
           "-Pnative.buildType=${{ inputs.native-build-type }}"
+          "-Pnative.lib.basename=${{ inputs.native-lib-basename }}"
           --stacktrace
+
+      - name: Assert expected Windows JNI payload exists
+        shell: pwsh
+        run: |
+          $jniPath = "$env:GITHUB_WORKSPACE/native-bridge/build/cmake/out/${{ inputs.native-build-type }}/${{ inputs.native-lib-basename }}.dll"
+          if (!(Test-Path $jniPath)) {
+            Write-Error "Expected JNI library not found: $jniPath"
+          }
 
       - name: Verify samples
         if: ${{ inputs.run-verify-samples }}
@@ -88,6 +102,7 @@ jobs:
           :native-artifacts:sqlcipher-multiplatform-jdbc-windows-x64:verifyNativeArtifactGuardrails
           "-Pnative.windowsPayloadDir=native-bridge/build/cmake/out/${{ inputs.native-build-type }}"
           "-Pnative.buildType=${{ inputs.native-build-type }}"
+          "-Pnative.lib.basename=${{ inputs.native-lib-basename }}"
           --stacktrace
 
       - name: Publish dry-run to Maven local

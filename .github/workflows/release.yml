@@ -40,6 +40,7 @@ jobs:
     uses: ./.github/workflows/_windows-native-build.yml
     with:
       native-build-type: Release
+      native-lib-basename: sqlcipher_jni
       run-verify-samples: false
       run-native-smoke-test: false
       run-publish-to-maven-local: false
@@ -402,7 +403,7 @@ jobs:
       - name: Validate windows payload
         run: |
           ls -la build/native-payloads/windows-x64
-          test -f build/native-payloads/windows-x64/sqlcipher_jni.dll
+          test -f "build/native-payloads/windows-x64/sqlcipher_jni.dll"
 
       - name: Publish windows-x64 artifact
         env:
@@ -422,6 +423,7 @@ jobs:
             :native-artifacts:sqlcipher-multiplatform-jdbc-windows-x64:publish \
             ${VERSION_ARG} \
             -Pnative.windowsPayloadDir=build/native-payloads/windows-x64 \
+            -Pnative.lib.basename=sqlcipher_jni \
             --stacktrace
 
   publish-native-linux-x64:
