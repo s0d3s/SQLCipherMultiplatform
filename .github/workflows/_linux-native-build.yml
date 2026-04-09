@@ -1,0 +1,198 @@
+name: _linux-native-build
+
+"on":
+  workflow_call:
+    inputs:
+      arch:
+        description: "Target architecture: x64 or arm64"
+        required: true
+        type: string
+      native-build-type:
+        description: Native bridge build type
+        required: false
+        type: string
+        default: Release
+      native-lib-basename:
+        description: Native JNI library basename (without platform prefix/suffix)
+        required: false
+        type: string
+        default: sqlcipher_jni
+      run-verify-samples:
+        description: Run verifySamples task
+        required: false
+        type: boolean
+        default: false
+      run-native-smoke-test:
+        description: Run native artifact guardrails (payload verification + shared jdbc-core integration tests)
+        required: false
+        type: boolean
+        default: false
+      run-publish-to-maven-local:
+        description: Run publishToMavenLocal as a consumer smoke check
+        required: false
+        type: boolean
+        default: false
+      run-publish-to-maven-central:
+        description: Publish Linux native JDBC artifact to Maven Central
+        required: false
+        type: boolean
+        default: false
+      upload-artifacts:
+        description: Upload built Linux native payload/JAR artifacts
+        required: false
+        type: boolean
+        default: true
+      artifact-prefix:
+        description: Prefix used for uploaded artifact names
+        required: false
+        type: string
+        default: linux-native
+
+jobs:
+  build:
+    name: Linux ${{ inputs.arch }} build
+    runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+
+    steps:
+      - name: Resolve platform variables
+        id: platform
+        run: |
+          if [[ "${{ inputs.arch }}" == "x64" ]]; then
+            echo "module_suffix=linux-x64" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ inputs.arch }}" == "arm64" ]]; then
+            echo "module_suffix=linux-arm64" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Unsupported arch: ${{ inputs.arch }}"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
+
+      - name: Install native build tools
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake ninja-build pkg-config curl zip unzip tar
+
+      - name: Setup Conan 2
+        run: |
+          python3 -m venv "$RUNNER_TEMP/conan-venv"
+          source "$RUNNER_TEMP/conan-venv/bin/activate"
+          pip install --upgrade pip
+          pip install conan
+          conan profile detect --force
+          echo "$RUNNER_TEMP/conan-venv/bin" >> "$GITHUB_PATH"
+
+      - name: Compile key JVM modules
+        run: ./gradlew :sqlcipher-multiplatform-jdbc-core:compileKotlin :sqlcipher-multiplatform:compileKotlinJvm --stacktrace
+
+      - name: Build Linux ${{ inputs.arch }} native bridge and artifact module
+        run: >-
+          ./gradlew
+          :native-bridge:buildNative
+          :native-artifacts:sqlcipher-multiplatform-jdbc-${{ steps.platform.outputs.module_suffix }}:processResources
+          :native-artifacts:sqlcipher-multiplatform-jdbc-${{ steps.platform.outputs.module_suffix }}:jar
+          -Pnative.target.os=linux
+          -Pnative.target.arch=${{ inputs.arch }}
+          "-Pnative.buildType=${{ inputs.native-build-type }}"
+          "-Pnative.lib.basename=${{ inputs.native-lib-basename }}"
+          --stacktrace
+
+      - name: Verify Linux ${{ inputs.arch }} native artifact guardrails
+        if: ${{ inputs.run-native-smoke-test }}
+        run: >-
+          ./gradlew
+          :native-artifacts:sqlcipher-multiplatform-jdbc-${{ steps.platform.outputs.module_suffix }}:verifyNativeArtifactGuardrails
+          "-Pnative.buildType=${{ inputs.native-build-type }}"
+          "-Pnative.lib.basename=${{ inputs.native-lib-basename }}"
+          --stacktrace
+
+      - name: Publish to Maven Local
+        if: ${{ inputs.run-publish-to-maven-local }}
+        run: >-
+          ./gradlew
+          :native-artifacts:sqlcipher-multiplatform-jdbc-${{ steps.platform.outputs.module_suffix }}:publishToMavenLocal
+          "-Pnative.buildType=${{ inputs.native-build-type }}"
+          "-Pnative.lib.basename=${{ inputs.native-lib-basename }}"
+          --stacktrace
+
+      - name: Verify samples
+        if: ${{ inputs.run-verify-samples }}
+        run: >-
+          ./gradlew
+          verifySamples
+          "-Pnative.target.os=linux"
+          "-Pnative.target.arch=${{ inputs.arch }}"
+          "-Pnative.buildType=${{ inputs.native-build-type }}"
+          "-Pnative.lib.basename=${{ inputs.native-lib-basename }}"
+          --stacktrace
+
+      - name: Publish linux-${{ inputs.arch }} artifact to Maven Central
+        if: ${{ inputs.run-publish-to-maven-central }}
+        env:
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_SONATYPE_CLOSE_TIMEOUT_SECONDS: "1800"
+        run: |
+          VERSION_ARG=""
+          if [[ "${GITHUB_REF}" == refs/tags/v* || "${GITHUB_REF_NAME}" == v* ]]; then
+            VERSION_ARG="-PreleaseVersion=${GITHUB_REF_NAME#v}"
+          fi
+
+          ./gradlew \
+            :native-artifacts:sqlcipher-multiplatform-jdbc-${{ steps.platform.outputs.module_suffix }}:verifyNativeArtifactGuardrails \
+            :native-artifacts:sqlcipher-multiplatform-jdbc-${{ steps.platform.outputs.module_suffix }}:publishAndReleaseToMavenCentral \
+            ${VERSION_ARG} \
+            "-Pnative.buildType=${{ inputs.native-build-type }}" \
+            "-Pnative.lib.basename=${{ inputs.native-lib-basename }}" \
+            --stacktrace
+
+      - name: Upload Linux ${{ inputs.arch }} native artifact JAR
+        if: ${{ inputs.upload-artifacts }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-prefix }}-${{ inputs.arch }}-jar
+          path: native-artifacts/sqlcipher-multiplatform-jdbc-${{ steps.platform.outputs.module_suffix }}/build/libs/*.jar
+          if-no-files-found: error
+
+      - name: Upload Gradle test reports on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-prefix }}-${{ inputs.arch }}-test-reports
+          path: |
+            **/build/reports/tests/**
+            **/build/test-results/**
+          if-no-files-found: ignore
+
+      - name: Dump native output folders on failure
+        if: ${{ failure() }}
+        run: |
+          echo "native-bridge/build/cmake/out tree:"
+          if [[ -d "native-bridge/build/cmake/out" ]]; then
+            find native-bridge/build/cmake/out -type f -exec ls -lh {} \;
+          else
+            echo "(missing) native-bridge/build/cmake/out"
+          fi
+
+          echo "artifact resources tree:"
+          RESOURCE_DIR="native-artifacts/sqlcipher-multiplatform-jdbc-${{ steps.platform.outputs.module_suffix }}/build/resources/main/META-INF/sqlcipher/native/${{ steps.platform.outputs.module_suffix }}"
+          if [[ -d "$RESOURCE_DIR" ]]; then
+            find "$RESOURCE_DIR" -type f -exec ls -lh {} \;
+          else
+            echo "(missing) $RESOURCE_DIR"
+          fi

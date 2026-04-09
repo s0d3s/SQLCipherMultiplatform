@@ -1,0 +1,386 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  RELEASE_ENABLE_WINDOWS_X64: "true"
+  RELEASE_ENABLE_LINUX_X64: "true"
+  RELEASE_ENABLE_LINUX_ARM64: "true"
+  RELEASE_ENABLE_MACOS_X64: "true"
+  RELEASE_ENABLE_MACOS_ARM64: "true"
+
+jobs:
+  resolve-release-targets:
+    name: Resolve enabled release targets
+    runs-on: ubuntu-latest
+    outputs:
+      enable_windows_x64: ${{ steps.flags.outputs.enable_windows_x64 }}
+      enable_linux_x64: ${{ steps.flags.outputs.enable_linux_x64 }}
+      enable_linux_arm64: ${{ steps.flags.outputs.enable_linux_arm64 }}
+      enable_macos_x64: ${{ steps.flags.outputs.enable_macos_x64 }}
+      enable_macos_arm64: ${{ steps.flags.outputs.enable_macos_arm64 }}
+      guardrails_matrix: ${{ steps.flags.outputs.guardrails_matrix }}
+      guardrails_has_targets: ${{ steps.flags.outputs.guardrails_has_targets }}
+    steps:
+      - name: Resolve target flags from workflow env
+        id: flags
+        run: |
+          echo "enable_windows_x64=${RELEASE_ENABLE_WINDOWS_X64}" >> "$GITHUB_OUTPUT"
+          echo "enable_linux_x64=${RELEASE_ENABLE_LINUX_X64}" >> "$GITHUB_OUTPUT"
+          echo "enable_linux_arm64=${RELEASE_ENABLE_LINUX_ARM64}" >> "$GITHUB_OUTPUT"
+          echo "enable_macos_x64=${RELEASE_ENABLE_MACOS_X64}" >> "$GITHUB_OUTPUT"
+          echo "enable_macos_arm64=${RELEASE_ENABLE_MACOS_ARM64}" >> "$GITHUB_OUTPUT"
+
+          matrix_entries=()
+
+          if [[ "${RELEASE_ENABLE_WINDOWS_X64}" == "true" ]]; then
+            matrix_entries+=("{\"target\":\"windows-x64\",\"runner\":\"windows-latest\"}")
+          fi
+
+          if [[ "${RELEASE_ENABLE_LINUX_X64}" == "true" ]]; then
+            matrix_entries+=("{\"target\":\"linux-x64\",\"runner\":\"ubuntu-latest\"}")
+          fi
+
+          if [[ "${RELEASE_ENABLE_LINUX_ARM64}" == "true" ]]; then
+            matrix_entries+=("{\"target\":\"linux-arm64\",\"runner\":\"ubuntu-24.04-arm\"}")
+          fi
+
+          if [[ "${RELEASE_ENABLE_MACOS_X64}" == "true" ]]; then
+            matrix_entries+=("{\"target\":\"macos-x64\",\"runner\":\"macos-26-intel\"}")
+          fi
+
+          if [[ "${RELEASE_ENABLE_MACOS_ARM64}" == "true" ]]; then
+            matrix_entries+=("{\"target\":\"macos-arm64\",\"runner\":\"macos-26\"}")
+          fi
+
+          if (( ${#matrix_entries[@]} == 0 )); then
+            echo "guardrails_has_targets=false" >> "$GITHUB_OUTPUT"
+            echo 'guardrails_matrix={"include":[{"target":"linux-x64","runner":"ubuntu-latest"}]}' >> "$GITHUB_OUTPUT"
+          else
+            joined_entries=""
+            for entry in "${matrix_entries[@]}"; do
+              if [[ -n "$joined_entries" ]]; then
+                joined_entries+="," 
+              fi
+              joined_entries+="$entry"
+            done
+
+            echo "guardrails_has_targets=true" >> "$GITHUB_OUTPUT"
+            echo "guardrails_matrix={\"include\":[${joined_entries}]}" >> "$GITHUB_OUTPUT"
+          fi
+
+  release-native-windows-x64:
+    name: Release native windows-x64
+    needs: [resolve-release-targets]
+    if: ${{ needs.resolve-release-targets.outputs.enable_windows_x64 == 'true' }}
+    uses: ./.github/workflows/_windows-native-build.yml
+    secrets: inherit
+    with:
+      native-build-type: Release
+      native-lib-basename: sqlcipher_jni
+      run-verify-samples: false
+      run-native-smoke-test: true
+      run-publish-to-maven-local: false
+      run-publish-to-maven-central: true
+      upload-artifacts: false
+      artifact-prefix: release-windows-native
+
+  release-native-linux-x64:
+    name: Release native linux-x64
+    needs: [resolve-release-targets]
+    if: ${{ needs.resolve-release-targets.outputs.enable_linux_x64 == 'true' }}
+    uses: ./.github/workflows/_linux-native-build.yml
+    secrets: inherit
+    with:
+      arch: x64
+      native-build-type: Release
+      native-lib-basename: sqlcipher_jni
+      run-native-smoke-test: true
+      run-publish-to-maven-central: true
+      upload-artifacts: false
+      artifact-prefix: release-linux-native
+
+  release-native-linux-arm64:
+    name: Release native linux-arm64
+    needs: [resolve-release-targets]
+    if: ${{ needs.resolve-release-targets.outputs.enable_linux_arm64 == 'true' }}
+    uses: ./.github/workflows/_linux-native-build.yml
+    secrets: inherit
+    with:
+      arch: arm64
+      native-build-type: Release
+      native-lib-basename: sqlcipher_jni
+      run-native-smoke-test: true
+      run-publish-to-maven-central: true
+      upload-artifacts: false
+      artifact-prefix: release-linux-native
+
+  release-native-macos-x64:
+    name: Release native macos-x64
+    needs: [resolve-release-targets]
+    if: ${{ needs.resolve-release-targets.outputs.enable_macos_x64 == 'true' }}
+    uses: ./.github/workflows/_macos-native-build.yml
+    secrets: inherit
+    with:
+      arch: x64
+      native-build-type: Release
+      native-lib-basename: sqlcipher_jni
+      run-native-smoke-test: true
+      run-publish-to-maven-central: true
+      upload-artifacts: false
+      artifact-prefix: release-macos-native
+
+  release-native-macos-arm64:
+    name: Release native macos-arm64
+    needs: [resolve-release-targets]
+    if: ${{ needs.resolve-release-targets.outputs.enable_macos_arm64 == 'true' }}
+    uses: ./.github/workflows/_macos-native-build.yml
+    secrets: inherit
+    with:
+      arch: arm64
+      native-build-type: Release
+      native-lib-basename: sqlcipher_jni
+      run-native-smoke-test: true
+      run-publish-to-maven-central: true
+      upload-artifacts: false
+      artifact-prefix: release-macos-native
+
+  publish-jdbc-core:
+    name: Publish JDBC core
+    runs-on: ubuntu-latest
+    needs:
+      - resolve-release-targets
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
+
+      - name: Publish jdbc core artifact
+        env:
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_SONATYPE_CLOSE_TIMEOUT_SECONDS: "1800"
+        run: |
+          VERSION_ARG=""
+          if [[ "${GITHUB_REF}" == refs/tags/v* || "${GITHUB_REF_NAME}" == v* ]]; then
+            VERSION_ARG="-PreleaseVersion=${GITHUB_REF_NAME#v}"
+          fi
+
+          ./gradlew :sqlcipher-multiplatform-jdbc-core:publishAndReleaseToMavenCentral  ${VERSION_ARG} --stacktrace
+
+  publish-kmp-api:
+    name: Publish KMP API
+    runs-on: ubuntu-latest
+    needs:
+      - resolve-release-targets
+      - publish-jdbc-core
+      - release-native-windows-x64
+      - release-native-linux-x64
+      - release-native-linux-arm64
+      - release-native-macos-x64
+      - release-native-macos-arm64
+    if: ${{ always() && needs.publish-jdbc-core.result == 'success' && (needs.resolve-release-targets.outputs.enable_windows_x64 != 'true' || needs.release-native-windows-x64.result == 'success') && (needs.resolve-release-targets.outputs.enable_linux_x64 != 'true' || needs.release-native-linux-x64.result == 'success') && (needs.resolve-release-targets.outputs.enable_linux_arm64 != 'true' || needs.release-native-linux-arm64.result == 'success') && (needs.resolve-release-targets.outputs.enable_macos_x64 != 'true' || needs.release-native-macos-x64.result == 'success') && (needs.resolve-release-targets.outputs.enable_macos_arm64 != 'true' || needs.release-native-macos-arm64.result == 'success') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
+
+      - name: Publish KMP API artifact
+        env:
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_SONATYPE_CLOSE_TIMEOUT_SECONDS: "1800"
+        run: |
+          VERSION_ARG=""
+          if [[ "${GITHUB_REF}" == refs/tags/v* || "${GITHUB_REF_NAME}" == v* ]]; then
+            VERSION_ARG="-PreleaseVersion=${GITHUB_REF_NAME#v}"
+          fi
+
+          ./gradlew \
+            :sqlcipher-multiplatform:verifyPublishedNativeArtifacts \
+            :sqlcipher-multiplatform:publishAndReleaseToMavenCentral  \
+            ${VERSION_ARG} \
+            -Psqlcipher.useLocalJdbcPlatforms=false \
+            -Psqlcipher.includeAllNativePlatforms=true \
+            --stacktrace
+
+  guardrails-published-kmp-samples:
+    name: Guardrails for published KMP samples (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    needs:
+      - resolve-release-targets
+      - publish-kmp-api
+    if: ${{ needs.publish-kmp-api.result == 'success' && needs.resolve-release-targets.outputs.guardrails_has_targets == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.resolve-release-targets.outputs.guardrails_matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Ensure Gradle wrapper is executable
+        if: runner.os != 'Windows'
+        run: chmod +x ./gradlew
+
+      - name: Wait for published KMP artifacts to become resolvable
+        if: runner.os != 'Windows'
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          BASE_URL="https://repo.maven.apache.org/maven2/io/github/s0d3s"
+
+          declare -a URLS=(
+            "${BASE_URL}/sqlcipher-multiplatform/${VERSION}/sqlcipher-multiplatform-${VERSION}.pom"
+            "${BASE_URL}/sqlcipher-multiplatform-jdbc-core/${VERSION}/sqlcipher-multiplatform-jdbc-core-${VERSION}.pom"
+          )
+
+          timeout_seconds=3600
+          poll_interval_seconds=30
+          deadline=$((SECONDS + timeout_seconds))
+          pending=("${URLS[@]}")
+
+          while true; do
+            remaining=()
+
+            for url in "${pending[@]}"; do
+              if curl --silent --show-error --fail --location --head "$url" > /dev/null; then
+                echo "[READY] $url"
+              else
+                echo "[WAIT ] $url"
+                remaining+=("$url")
+              fi
+            done
+
+            if [[ ${#remaining[@]} -eq 0 ]]; then
+              echo "All required KMP artifacts are available on Maven Central."
+              break
+            fi
+
+            if (( SECONDS >= deadline )); then
+              echo "Timed out waiting for KMP artifacts to appear on Maven Central."
+              printf 'Still missing:\n - %s\n' "${remaining[@]}"
+              exit 1
+            fi
+
+            pending=("${remaining[@]}")
+            sleep "${poll_interval_seconds}"
+          done
+
+      - name: Wait for published KMP artifacts to become resolvable (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v',''
+          $baseUrl = "https://repo.maven.apache.org/maven2/io/github/s0d3s"
+
+          $urls = @(
+            "$baseUrl/sqlcipher-multiplatform/$version/sqlcipher-multiplatform-$version.pom",
+            "$baseUrl/sqlcipher-multiplatform-jdbc-core/$version/sqlcipher-multiplatform-jdbc-core-$version.pom"
+          )
+
+          $timeoutSeconds = 3600
+          $pollIntervalSeconds = 30
+          $deadline = (Get-Date).AddSeconds($timeoutSeconds)
+          $pending = @($urls)
+
+          while ($true) {
+            $remaining = @()
+
+            foreach ($url in $pending) {
+              try {
+                Invoke-WebRequest -Uri $url -Method Head -UseBasicParsing -ErrorAction Stop | Out-Null
+                Write-Host "[READY] $url"
+              } catch {
+                Write-Host "[WAIT ] $url"
+                $remaining += $url
+              }
+            }
+
+            if ($remaining.Count -eq 0) {
+              Write-Host "All required KMP artifacts are available on Maven Central."
+              break
+            }
+
+            if ((Get-Date) -ge $deadline) {
+              Write-Host "Timed out waiting for KMP artifacts to appear on Maven Central."
+              Write-Host "Still missing:"
+              $remaining | ForEach-Object { Write-Host " - $_" }
+              exit 1
+            }
+
+            $pending = @($remaining)
+            Start-Sleep -Seconds $pollIntervalSeconds
+          }
+
+      - name: Run sample guardrails against released SQLCipher Multiplatform version
+        if: runner.os != 'Windows'
+        run: |
+          RELEASE_VERSION="${GITHUB_REF_NAME#v}"
+
+          ./gradlew \
+            :samples:kmp-basic-app:verifySample \
+            :samples:kmp-sqldelight-app:verifySample \
+            -Psqlcipher.version=${RELEASE_VERSION} \
+            -Psqlcipher.useLocalJdbcPlatforms=false \
+            -Psqlcipher.includeAllNativePlatforms=false \
+            --refresh-dependencies \
+            --stacktrace
+
+      - name: Run sample guardrails against released SQLCipher Multiplatform version (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $releaseVersion = $env:GITHUB_REF_NAME -replace '^v',''
+
+          .\gradlew.bat `
+            :samples:kmp-basic-app:verifySample `
+            :samples:kmp-sqldelight-app:verifySample `
+            "-Psqlcipher.version=$releaseVersion" `
+            "-Psqlcipher.useLocalJdbcPlatforms=false" `
+            "-Psqlcipher.includeAllNativePlatforms=false" `
+            --refresh-dependencies `
+            --stacktrace

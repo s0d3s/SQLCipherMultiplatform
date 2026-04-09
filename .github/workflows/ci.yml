@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+    tags-ignore:
+      - "v*"
+  pull_request:
+
+jobs:
+  windows-build-and-verify:
+    name: Build & verify (windows-latest)
+    uses: ./.github/workflows/_windows-native-build.yml
+    with:
+      native-build-type: Release
+      run-verify-samples: true
+      run-native-smoke-test: true
+      run-publish-to-maven-local: true
+      upload-artifacts: true
+      artifact-prefix: ci-windows-native
+
+  linux-x64-build-and-verify:
+    name: Build & verify (linux-x64)
+    uses: ./.github/workflows/_linux-native-build.yml
+    with:
+      arch: x64
+      native-build-type: Release
+      run-verify-samples: true
+      run-native-smoke-test: true
+      run-publish-to-maven-local: true
+      upload-artifacts: true
+      artifact-prefix: ci-linux-native
+
+  linux-arm64-build-and-verify:
+    name: Build & verify (linux-arm64)
+    uses: ./.github/workflows/_linux-native-build.yml
+    with:
+      arch: arm64
+      native-build-type: Release
+      run-verify-samples: true
+      run-native-smoke-test: true
+      run-publish-to-maven-local: true
+      upload-artifacts: true
+      artifact-prefix: ci-linux-native
+
+  macos-x64-build-and-verify:
+    name: Build & verify (macos-x64)
+    uses: ./.github/workflows/_macos-native-build.yml
+    with:
+      arch: x64
+      native-build-type: Release
+      run-verify-samples: true
+      run-native-smoke-test: true
+      run-publish-to-maven-local: true
+      upload-artifacts: true
+      artifact-prefix: ci-macos-native
+
+  macos-arm64-build-and-verify:
+    name: Build & verify (macos-arm64)
+    uses: ./.github/workflows/_macos-native-build.yml
+    with:
+      arch: arm64
+      native-build-type: Release
+      run-verify-samples: true
+      run-native-smoke-test: true
+      run-publish-to-maven-local: true
+      upload-artifacts: true
+      artifact-prefix: ci-macos-native

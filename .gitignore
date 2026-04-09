@@ -1,0 +1,14 @@
+/.gradle/
+/build/
+**/build/
+/.idea/
+*.iml
+*.db
+*.log
+gradle-*.zip
+gradle-*/
+.env
+.env.hide
+.local/
+/native-bridge/CMakeUserPresets.json
+.kotlin/
