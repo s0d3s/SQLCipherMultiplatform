@@ -3,6 +3,7 @@ import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.api.file.DuplicatesStrategy
 import com.vanniktech.maven.publish.DeploymentValidation
 import java.io.File
+import java.util.Properties
 import java.util.zip.ZipFile
 
 plugins {
@@ -154,7 +155,6 @@ data class NativePlatformSpec(
     val moduleName: String,
     val modulePath: String,
     val payloadProperty: String,
-    val nativeLibGlob: String,
     val expectedJniLib: String,
     val integrationTestTask: String,
 )
@@ -165,48 +165,63 @@ fun Project.resolvePayloadDir(pathValue: String): File {
     return if (asFile.isAbsolute) asFile else rootProject.file(trimmed)
 }
 
-fun recursiveNativeIncludes(spec: NativePlatformSpec): List<String> =
-    when (spec.targetOs) {
-        "windows" -> listOf("**/*.dll")
-        "linux" -> listOf("**/*.so", "**/*.so.*")
-        "macos" -> listOf("**/*.dylib")
-        else -> listOf("**/${spec.expectedJniLib}")
-    }
+fun manifestDependenciesFor(spec: NativePlatformSpec): List<String> {
+    val manifestFile = rootProject.file(
+        "native-artifacts/${spec.moduleName}/src/main/resources/META-INF/sqlcipher/native/${spec.targetId}/manifest.properties"
+    )
+
+    if (!manifestFile.exists()) return emptyList()
+
+    val properties = Properties()
+    manifestFile.inputStream().use { properties.load(it) }
+
+    return properties.getProperty("dependencies")
+        .orEmpty()
+        .split(',')
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+}
+
+fun recursiveNativeIncludes(spec: NativePlatformSpec): List<String> {
+    val dependencyIncludes = manifestDependenciesFor(spec).map { "**/$it" }
+    val expectedJniInclude = "**/${spec.expectedJniLib}"
+    return (dependencyIncludes + expectedJniInclude).distinct()
+}
 
 val nativePlatformSpecs = listOf(
     NativePlatformSpec(
         "windows-x64", "windows", "x64",
         "sqlcipher-multiplatform-jdbc-windows-x64",
         ":native-artifacts:sqlcipher-multiplatform-jdbc-windows-x64",
-        "native.windowsPayloadDir", "*.dll", "${nativeLibBasename}.dll",
+        "native.windowsPayloadDir", "${nativeLibBasename}.dll",
         "testIntegrationWindowsX64"
     ),
     NativePlatformSpec(
         "linux-x64", "linux", "x64",
         "sqlcipher-multiplatform-jdbc-linux-x64",
         ":native-artifacts:sqlcipher-multiplatform-jdbc-linux-x64",
-        "native.linuxX64PayloadDir", "*.so", "lib${nativeLibBasename}.so",
+        "native.linuxX64PayloadDir", "lib${nativeLibBasename}.so",
         "testIntegrationLinuxX64"
     ),
     NativePlatformSpec(
         "linux-arm64", "linux", "arm64",
         "sqlcipher-multiplatform-jdbc-linux-arm64",
         ":native-artifacts:sqlcipher-multiplatform-jdbc-linux-arm64",
-        "native.linuxArm64PayloadDir", "*.so", "lib${nativeLibBasename}.so",
+        "native.linuxArm64PayloadDir", "lib${nativeLibBasename}.so",
         "testIntegrationLinuxArm64"
     ),
     NativePlatformSpec(
         "macos-x64", "macos", "x64",
         "sqlcipher-multiplatform-jdbc-macos-x64",
         ":native-artifacts:sqlcipher-multiplatform-jdbc-macos-x64",
-        "native.macosX64PayloadDir", "*.dylib", "lib${nativeLibBasename}.dylib",
+        "native.macosX64PayloadDir", "lib${nativeLibBasename}.dylib",
         "testIntegrationMacosX64"
     ),
     NativePlatformSpec(
         "macos-arm64", "macos", "arm64",
         "sqlcipher-multiplatform-jdbc-macos-arm64",
         ":native-artifacts:sqlcipher-multiplatform-jdbc-macos-arm64",
-        "native.macosArm64PayloadDir", "*.dylib", "lib${nativeLibBasename}.dylib",
+        "native.macosArm64PayloadDir", "lib${nativeLibBasename}.dylib",
         "testIntegrationMacosArm64"
     ),
 )
@@ -262,6 +277,14 @@ nativePlatformSpecs.forEach { spec ->
         val nativeConanDeployDir = nativeBridgeBuildDir.dir("conan/deploy")
         val generatedNativeResources = layout.buildDirectory.dir("generated/native-resources")
         val nativeIncludePatterns = recursiveNativeIncludes(spec)
+        val useExternalPayload = externalPayloadDir?.exists() == true
+        val useNativeBuildPayload = hostOs == spec.targetOs && hostArch == spec.targetArch
+        val primaryNativeSource = when {
+            useExternalPayload -> externalPayloadDir
+            useNativeBuildPayload -> nativeOutDir
+            else -> null
+        }
+        val conanNativeSource = if (useNativeBuildPayload) nativeConanDeployDir else null
         val expectedGeneratedJni = generatedNativeResources.map {
             it.file("META-INF/sqlcipher/native/${spec.targetId}/${spec.expectedJniLib}").asFile
         }
@@ -271,26 +294,20 @@ nativePlatformSpecs.forEach { spec ->
             duplicatesStrategy = DuplicatesStrategy.INCLUDE
 
             into(generatedNativeResources.map { it.dir("META-INF/sqlcipher/native/${spec.targetId}") })
-            if (externalPayloadDir?.exists() == true) {
-                from(externalPayloadDir) {
-                    nativeIncludePatterns.forEach { include(it) }
-                    include("**/${spec.expectedJniLib}")
-                }
-            } else if (hostOs == spec.targetOs && hostArch == spec.targetArch) {
-                dependsOn(":native-bridge:buildNative")
-                from(nativeOutDir) {
-                    nativeIncludePatterns.forEach { include(it) }
-                    include("**/${spec.expectedJniLib}")
-                }
 
-                // On Windows CI, transitive runtime DLLs may remain under Conan deploy output
-                // instead of being copied next to the JNI library in nativeOutDir.
-                // Include both sources so packaged native artifacts always contain all required
-                // dependencies declared in manifest.properties.
-                if (spec.targetOs == "windows") {
-                    from(nativeConanDeployDir) {
-                        include("*.dll")
-                    }
+            if (useNativeBuildPayload) {
+                dependsOn(":native-bridge:buildNative")
+            }
+
+            if (conanNativeSource != null) {
+                from(conanNativeSource) {
+                    nativeIncludePatterns.forEach { include(it) }
+                }
+            }
+
+            if (primaryNativeSource != null) {
+                from(primaryNativeSource) {
+                    nativeIncludePatterns.forEach { include(it) }
                 }
             }
 
@@ -303,15 +320,15 @@ nativePlatformSpecs.forEach { spec ->
 
             doFirst {
                 val sourceMode = when {
-                    externalPayloadDir?.exists() == true -> "externalPayloadDir"
-                    hostOs == spec.targetOs && hostArch == spec.targetArch -> "nativeOutDir"
+                    useExternalPayload -> "externalPayloadDir"
+                    useNativeBuildPayload -> "nativeOutDir"
                     else -> "none"
                 }
+                logger.lifecycle("[prepareNativeResources:${spec.targetId}] nativeIncludePatterns=${nativeIncludePatterns.joinToString()}")
                 logger.lifecycle("[prepareNativeResources:${spec.targetId}] sourceMode=$sourceMode")
                 logger.lifecycle("[prepareNativeResources:${spec.targetId}] nativeOutDir=${nativeOutDir.get().asFile.absolutePath}")
                 logger.lifecycle("[prepareNativeResources:${spec.targetId}] nativeConanDeployDir=${nativeConanDeployDir.get().asFile.absolutePath}")
                 logger.lifecycle("[prepareNativeResources:${spec.targetId}] externalPayloadDir=${externalPayloadDir?.absolutePath ?: "(not set)"}")
-                logger.lifecycle("[prepareNativeResources:${spec.targetId}] includePatterns=${(nativeIncludePatterns + "**/${spec.expectedJniLib}").distinct().joinToString()}")
             }
 
             doLast {

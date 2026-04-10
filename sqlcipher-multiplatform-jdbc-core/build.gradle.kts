@@ -21,10 +21,6 @@ dependencies {
     testImplementation(kotlin("test-junit5"))
 }
 
-val isWindowsHost = System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
-val nativeBuildType = providers.gradleProperty("native.buildType")
-    .orElse(System.getenv("NATIVE_BUILD_TYPE") ?: if (isWindowsHost) "Release" else "RelWithDebInfo")
-
 tasks.test {
     useJUnitPlatform()
 
@@ -93,6 +89,7 @@ mavenPublishing {
 
 data class IntegrationGuardrailTarget(
     val taskName: String,
+    val nativeArtifactModulePath: String,
     val payloadDirProperty: String,
     val defaultNativePathProvider: () -> String,
 )
@@ -100,37 +97,42 @@ data class IntegrationGuardrailTarget(
 val integrationGuardrailTargets = listOf(
     IntegrationGuardrailTarget(
         taskName = "testIntegrationWindowsX64",
+        nativeArtifactModulePath = ":native-artifacts:sqlcipher-multiplatform-jdbc-windows-x64",
         payloadDirProperty = "native.windowsPayloadDir",
         defaultNativePathProvider = {
-            rootProject.file("native-bridge/build/cmake/out/${nativeBuildType.get()}").absolutePath
+            rootProject.file("native-artifacts/sqlcipher-multiplatform-jdbc-windows-x64/build/resources/main/META-INF/sqlcipher/native/windows-x64").absolutePath
         }
     ),
     IntegrationGuardrailTarget(
         taskName = "testIntegrationLinuxX64",
+        nativeArtifactModulePath = ":native-artifacts:sqlcipher-multiplatform-jdbc-linux-x64",
         payloadDirProperty = "native.linuxX64PayloadDir",
         defaultNativePathProvider = {
-            rootProject.file("native-bridge/build/cmake/out/${nativeBuildType.get()}").absolutePath
+            rootProject.file("native-artifacts/sqlcipher-multiplatform-jdbc-linux-x64/build/resources/main/META-INF/sqlcipher/native/linux-x64").absolutePath
         }
     ),
     IntegrationGuardrailTarget(
         taskName = "testIntegrationLinuxArm64",
+        nativeArtifactModulePath = ":native-artifacts:sqlcipher-multiplatform-jdbc-linux-arm64",
         payloadDirProperty = "native.linuxArm64PayloadDir",
         defaultNativePathProvider = {
-            rootProject.file("native-bridge/build/cmake/out/${nativeBuildType.get()}").absolutePath
+            rootProject.file("native-artifacts/sqlcipher-multiplatform-jdbc-linux-arm64/build/resources/main/META-INF/sqlcipher/native/linux-arm64").absolutePath
         }
     ),
     IntegrationGuardrailTarget(
         taskName = "testIntegrationMacosX64",
+        nativeArtifactModulePath = ":native-artifacts:sqlcipher-multiplatform-jdbc-macos-x64",
         payloadDirProperty = "native.macosX64PayloadDir",
         defaultNativePathProvider = {
-            rootProject.file("native-bridge/build/cmake/out/${nativeBuildType.get()}").absolutePath
+            rootProject.file("native-artifacts/sqlcipher-multiplatform-jdbc-macos-x64/build/resources/main/META-INF/sqlcipher/native/macos-x64").absolutePath
         }
     ),
     IntegrationGuardrailTarget(
         taskName = "testIntegrationMacosArm64",
+        nativeArtifactModulePath = ":native-artifacts:sqlcipher-multiplatform-jdbc-macos-arm64",
         payloadDirProperty = "native.macosArm64PayloadDir",
         defaultNativePathProvider = {
-            rootProject.file("native-bridge/build/cmake/out/${nativeBuildType.get()}").absolutePath
+            rootProject.file("native-artifacts/sqlcipher-multiplatform-jdbc-macos-arm64/build/resources/main/META-INF/sqlcipher/native/macos-arm64").absolutePath
         }
     )
 )
@@ -142,6 +144,8 @@ integrationGuardrailTargets.forEach { target ->
 
         useJUnitPlatform()
         dependsOn(tasks.named("testClasses"))
+        dependsOn("${target.nativeArtifactModulePath}:prepareNativeResources")
+        dependsOn("${target.nativeArtifactModulePath}:processResources")
         testClassesDirs = sourceSets["test"].output.classesDirs
         classpath = sourceSets["test"].runtimeClasspath
 
