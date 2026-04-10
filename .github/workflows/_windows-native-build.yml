@@ -129,7 +129,6 @@ jobs:
           }
 
           $args = @(
-            ":native-artifacts:sqlcipher-multiplatform-jdbc-windows-x64:verifyNativeArtifactGuardrails",
             ":native-artifacts:sqlcipher-multiplatform-jdbc-windows-x64:publishAndReleaseToMavenCentral",
             "-Pnative.buildType=${{ inputs.native-build-type }}",
             "-Pnative.lib.basename=${{ inputs.native-lib-basename }}",

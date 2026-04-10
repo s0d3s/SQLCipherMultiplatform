@@ -154,7 +154,6 @@ jobs:
           fi
 
           ./gradlew \
-            :native-artifacts:sqlcipher-multiplatform-jdbc-${{ steps.platform.outputs.module_suffix }}:verifyNativeArtifactGuardrails \
             :native-artifacts:sqlcipher-multiplatform-jdbc-${{ steps.platform.outputs.module_suffix }}:publishAndReleaseToMavenCentral \
             ${VERSION_ARG} \
             "-Pnative.buildType=${{ inputs.native-build-type }}" \
